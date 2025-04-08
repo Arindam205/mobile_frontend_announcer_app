@@ -50,6 +50,14 @@ export default function AppLayout() {
           name="rating-selection/index"
           options={{
             href: null
+          }}
+        />
+
+        {/* Hide the rating screens from tab bar */}
+        <Tabs.Screen 
+          name="rate-announcer"
+          options={{
+            href: null
           }} 
         />
       </Tabs>

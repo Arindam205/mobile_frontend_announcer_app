@@ -340,37 +340,66 @@ const RatingSelectionScreen: React.FC = () => {
       }
     });
   };
+
+  //ajke
   
   // Handle language selection
-  const handleLanguageSelect = (language: Language) => {
-    setSelectedLanguage(language);
-    setShowLanguageModal(false);
+  // const handleLanguageSelect = (language: Language) => {
+  //   setSelectedLanguage(language);
+  //   setShowLanguageModal(false);
     
-    // Show confirmation to user
+  //   // Show confirmation to user
+  //   Alert.alert(
+  //     "Selection Made",
+  //     `You selected to rate the ${selectedOption?.id} in ${language.languageName} language.`,
+  //     [
+  //       { 
+  //         text: 'Continue',
+  //         onPress: () => {
+  //           // Here you would pass the selected option and language to the next screen
+  //           console.log(`[RatingSelection] Selected ${language.languageName} language for ${selectedOption?.id} rating`);
+            
+  //           // TODO: Navigate to next page with selection data
+  //           // router.push({
+  //           //   pathname: "/(app)/rating-form",
+  //           //   params: {
+  //           //     optionType: selectedOption?.id,
+  //           //     languageId: language.languageId,
+  //           //     languageName: language.languageName
+  //           //   }
+  //           // });
+  //         }
+  //       }
+  //     ]
+  //   );
+  // };
+
+  // Handle language selection
+const handleLanguageSelect = (language: Language) => {
+  setSelectedLanguage(language);
+  setShowLanguageModal(false);
+  
+  // Navigate based on the selected option
+  if (selectedOption?.id === 'announcer') {
+    console.log(`[RatingSelection] Selected ${language.languageName} language for announcer rating`);
+    
+    // Navigate to announcer rating page
+    router.push({
+      pathname: "/(app)/rate-announcer",
+      params: {
+        languageId: language.languageId,
+        languageName: language.languageName
+      }
+    });
+  } else if (selectedOption?.id === 'program') {
+    // For program rating, just show an alert for now
     Alert.alert(
       "Selection Made",
-      `You selected to rate the ${selectedOption?.id} in ${language.languageName} language.`,
-      [
-        { 
-          text: 'Continue',
-          onPress: () => {
-            // Here you would pass the selected option and language to the next screen
-            console.log(`[RatingSelection] Selected ${language.languageName} language for ${selectedOption?.id} rating`);
-            
-            // TODO: Navigate to next page with selection data
-            // router.push({
-            //   pathname: "/(app)/rating-form",
-            //   params: {
-            //     optionType: selectedOption?.id,
-            //     languageId: language.languageId,
-            //     languageName: language.languageName
-            //   }
-            // });
-          }
-        }
-      ]
+      `You selected to rate the program in ${language.languageName} language.`,
+      [{ text: 'OK' }]
     );
-  };
+  }
+};
 
   // Close the language modal
   const handleCloseLanguageModal = () => {
