@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,8 @@ import {
   Platform, 
   KeyboardAvoidingView, 
   BackHandler,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Picker } from '@react-native-picker/picker';
@@ -18,8 +19,16 @@ import DatePicker from '../../components/DatePicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AlertCircle } from 'lucide-react-native';
+import { AlertCircle, ArrowLeft } from 'lucide-react-native';
+import StationSelector from '../../components/StationSelector';
 
+// Define interface for the station
+interface Station {
+  stationId: string;
+  stationName: string;
+}
+
+// Define allowed occupation options
 const occupations = [
   'Govt Service',
   'Self Employed',
@@ -27,6 +36,7 @@ const occupations = [
   'Others'
 ];
 
+// Define medium options
 const mediumOptions = [
   'Radio',
   'Youtube',
@@ -34,6 +44,22 @@ const mediumOptions = [
   'AIR app'
 ];
 
+// Define listening hours options
+const listeningHoursOptions = [
+  'Less than 1',
+  '1-2',
+  '2-3',
+  'More than 3'
+];
+
+// Define gender options
+const genderOptions = [
+  'Male',
+  'Female',
+  'Others'
+];
+
+// Form data interface
 interface FormData {
   name: string;
   dateOfBirth: Date;
@@ -43,39 +69,57 @@ interface FormData {
   mediumOfListening: string;
   password: string;
   confirmPassword: string;
+  phoneNumber: string;
+  gender: string;
+  stationId: string;
+  stationName: string;
 }
 
+// Form errors interface
 interface FormErrors {
   name?: string;
-  pincode?: string;
+  phoneNumber?: string;
   averageListeningHours?: string;
   password?: string;
   confirmPassword?: string;
+  gender?: string;
+  station?: string;
   general?: string;
 }
 
 export default function RegisterScreen() {
+  // Form state
   const [formData, setFormData] = useState<FormData>({
     name: '',
     dateOfBirth: new Date(),
     occupation: 'Govt Service',
     pincode: '',
-    averageListeningHours: '',
+    averageListeningHours: '1-2',
     mediumOfListening: 'Radio',
     password: '',
     confirmPassword: '',
+    phoneNumber: '',
+    gender: 'Male',
+    stationId: '',
+    stationName: '',
   });
   
+  // Selected station state
+  const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  
+  // Other state variables
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidationMessage, setShowValidationMessage] = useState(false);
+  
+  // Auth context
   const { register } = useAuth();
 
   // Custom back button handler
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        // Navigate directly to login page instead of verify
+        // Navigate to login page
         router.replace('/(auth)/login');
         return true; // Prevents default back behavior
       };
@@ -88,6 +132,22 @@ export default function RegisterScreen() {
     }, [])
   );
 
+  // Handle station selection
+  const handleStationSelect = (station: Station) => {
+    setSelectedStation(station);
+    
+    // Update form data with station information
+    setFormData(prev => ({
+      ...prev,
+      stationId: station.stationId,
+      stationName: station.stationName
+    }));
+    
+    // Clear any station-related errors
+    setErrors(prev => ({ ...prev, station: undefined }));
+  };
+
+  // Validate form
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
     let isValid = true;
@@ -98,21 +158,30 @@ export default function RegisterScreen() {
       isValid = false;
     }
 
-    // Validate pincode
-    if (!formData.pincode.trim()) {
-      newErrors.pincode = 'Pincode is required';
+    // Validate phone
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required';
       isValid = false;
-    } else if (formData.pincode.trim().length !== 6 || !/^\d+$/.test(formData.pincode)) {
-      newErrors.pincode = 'Pincode must be 6 digits';
+    } else if (formData.phoneNumber.trim().length !== 10 || !/^\d+$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = 'Phone number must be 10 digits';
       isValid = false;
     }
 
     // Validate listening hours
-    if (!formData.averageListeningHours.trim()) {
-      newErrors.averageListeningHours = 'Listening hours is required';
+    if (!formData.averageListeningHours) {
+      newErrors.averageListeningHours = 'Please select listening hours';
       isValid = false;
-    } else if (isNaN(Number(formData.averageListeningHours)) || Number(formData.averageListeningHours) <= 0) {
-      newErrors.averageListeningHours = 'Please enter a valid number';
+    }
+
+    // Validate station
+    if (!formData.stationId) {
+      newErrors.station = 'Please select a station';
+      isValid = false;
+    }
+
+    // Validate gender
+    if (!formData.gender) {
+      newErrors.gender = 'Please select a gender';
       isValid = false;
     }
 
@@ -139,12 +208,14 @@ export default function RegisterScreen() {
     return isValid;
   };
 
+  // Handle input changes
   const handleInputChange = (field: keyof FormData, value: string | Date) => {
     // Clear error for this field when user starts typing
     setErrors(prev => ({ ...prev, [field]: undefined }));
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Handle registration
   const handleRegister = async () => {
     if (!validateForm()) {
       return;
@@ -172,6 +243,11 @@ export default function RegisterScreen() {
     }
   };
 
+  // Navigate to login screen
+  const navigateToLogin = () => {
+    router.replace('/(auth)/login');
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <KeyboardAvoidingView 
@@ -187,21 +263,34 @@ export default function RegisterScreen() {
           bounces={false}
           overScrollMode="never"
         >
-          <View style={styles.header}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Please fill in the details below</Text>
+          {/* Header with back button */}
+          <View style={styles.headerContainer}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={navigateToLogin}
+            >
+              <ArrowLeft size={24} color="#111827" />
+            </TouchableOpacity>
+            
+            <View style={styles.header}>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>Please fill in the details below</Text>
+            </View>
           </View>
           
+          {/* Validation message */}
           {showValidationMessage && (
             <View style={styles.validationMessageContainer}>
               <AlertCircle size={20} color="#DC2626" />
               <Text style={styles.validationMessageText}>
-                All fields are mandatory. Please complete the form.
+                Please complete all required fields marked with an asterisk (*).
               </Text>
             </View>
           )}
           
+          {/* Registration form */}
           <View style={styles.form}>
+            {/* Name field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Full Name</Text>
@@ -219,6 +308,30 @@ export default function RegisterScreen() {
               {errors.name && <Text style={styles.fieldErrorText}>{errors.name}</Text>}
             </View>
 
+            {/* Phone Number field */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Phone Number</Text>
+                <Text style={styles.requiredAsterisk}>*</Text>
+              </View>
+              <View style={styles.phoneInputContainer}>
+                <Text style={styles.phonePrefix}>+91</Text>
+                <TextInput
+                  style={[styles.phoneInput, errors.phoneNumber && styles.inputError]}
+                  placeholder="Enter your phone number"
+                  keyboardType="phone-pad"
+                  value={formData.phoneNumber}
+                  onChangeText={(value) => handleInputChange('phoneNumber', value)}
+                  maxLength={10}
+                  placeholderTextColor="#666"
+                  returnKeyType="next"
+                  editable={!isSubmitting}
+                />
+              </View>
+              {errors.phoneNumber && <Text style={styles.fieldErrorText}>{errors.phoneNumber}</Text>}
+            </View>
+
+            {/* Date of Birth field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Date of Birth</Text>
@@ -230,6 +343,46 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {/* Gender selection */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Gender</Text>
+                <Text style={styles.requiredAsterisk}>*</Text>
+              </View>
+              <View style={[styles.pickerContainer, errors.gender && styles.inputError]}>
+                <Picker
+                  selectedValue={formData.gender}
+                  onValueChange={(value) => handleInputChange('gender', value)}
+                  style={styles.picker}
+                  enabled={!isSubmitting}
+                  dropdownIconColor="#000">
+                  {genderOptions.map((gender) => (
+                    <Picker.Item 
+                      key={gender} 
+                      label={gender} 
+                      value={gender}
+                      color="#000"
+                    />
+                  ))}
+                </Picker>
+              </View>
+              {errors.gender && <Text style={styles.fieldErrorText}>{errors.gender}</Text>}
+            </View>
+
+            {/* Station selection */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Station</Text>
+                <Text style={styles.requiredAsterisk}>*</Text>
+              </View>
+              <StationSelector
+                onStationSelect={handleStationSelect}
+                selectedStation={selectedStation}
+                error={errors.station}
+              />
+            </View>
+
+            {/* Occupation field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Occupation</Text>
@@ -254,13 +407,14 @@ export default function RegisterScreen() {
               </View>
             </View>
 
+            {/* Pincode field (optional) */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Pincode</Text>
-                <Text style={styles.requiredAsterisk}>*</Text>
+                <Text style={styles.optionalText}>(Optional)</Text>
               </View>
               <TextInput
-                style={[styles.input, errors.pincode && styles.inputError]}
+                style={styles.input}
                 placeholder="Enter your pincode"
                 keyboardType="number-pad"
                 value={formData.pincode}
@@ -270,29 +424,37 @@ export default function RegisterScreen() {
                 returnKeyType="next"
                 editable={!isSubmitting}
               />
-              {errors.pincode && <Text style={styles.fieldErrorText}>{errors.pincode}</Text>}
             </View>
 
+            {/* Average Listening Hours field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Average Listening Hours</Text>
                 <Text style={styles.requiredAsterisk}>*</Text>
               </View>
-              <TextInput
-                style={[styles.input, errors.averageListeningHours && styles.inputError]}
-                placeholder="Hours per day"
-                keyboardType="decimal-pad"
-                value={formData.averageListeningHours}
-                onChangeText={(value) => handleInputChange('averageListeningHours', value)}
-                placeholderTextColor="#666"
-                returnKeyType="next"
-                editable={!isSubmitting}
-              />
+              <View style={[styles.pickerContainer, errors.averageListeningHours && styles.inputError]}>
+                <Picker
+                  selectedValue={formData.averageListeningHours}
+                  onValueChange={(value) => handleInputChange('averageListeningHours', value)}
+                  style={styles.picker}
+                  enabled={!isSubmitting}
+                  dropdownIconColor="#000">
+                  {listeningHoursOptions.map((option) => (
+                    <Picker.Item 
+                      key={option} 
+                      label={option} 
+                      value={option}
+                      color="#000"
+                    />
+                  ))}
+                </Picker>
+              </View>
               {errors.averageListeningHours && (
                 <Text style={styles.fieldErrorText}>{errors.averageListeningHours}</Text>
               )}
             </View>
 
+            {/* Medium of Listening field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Preferred Medium</Text>
@@ -317,6 +479,7 @@ export default function RegisterScreen() {
               </View>
             </View>
 
+            {/* Password field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Password</Text>
@@ -335,6 +498,7 @@ export default function RegisterScreen() {
               {errors.password && <Text style={styles.fieldErrorText}>{errors.password}</Text>}
             </View>
 
+            {/* Confirm Password field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Confirm Password</Text>
@@ -355,12 +519,14 @@ export default function RegisterScreen() {
               )}
             </View>
 
+            {/* General error message */}
             {errors.general ? (
               <View style={styles.errorContainer}>
                 <Text style={styles.error}>{errors.general}</Text>
               </View>
             ) : null}
 
+            {/* Submit button */}
             <TouchableOpacity 
               style={[styles.button, isSubmitting && styles.buttonDisabled]} 
               onPress={handleRegister}
@@ -394,9 +560,23 @@ const styles = StyleSheet.create({
   scrollViewContent: {
     paddingBottom: 20,
   },
-  header: {
+  headerContainer: {
     padding: 20,
     paddingTop: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    marginRight: 12,
+  },
+  header: {
+    flex: 1,
   },
   title: {
     fontSize: 28,
@@ -449,6 +629,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 4,
   },
+  optionalText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    marginLeft: 4,
+    fontStyle: 'italic',
+  },
   input: {
     height: 50,
     borderWidth: 1,
@@ -457,6 +643,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+    color: '#000',
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  phonePrefix: {
+    paddingHorizontal: 15,
+    fontSize: 16,
+    color: '#000',
+    fontWeight: '500',
+    backgroundColor: '#f3f4f6',
+    height: '100%',
+    textAlignVertical: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#ddd',
+  },
+  phoneInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 15,
+    fontSize: 16,
     color: '#000',
   },
   inputError: {

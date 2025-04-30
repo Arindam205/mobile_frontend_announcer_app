@@ -121,9 +121,9 @@ export default function LoginScreen() {
       return;
     }
     
-    // On second click or if keyboard wasn't open, navigate
+    // On second click or if keyboard wasn't open, navigate directly to register
     setKeyboardDismissedForNavigation(false);
-    router.push('/(auth)/verify');
+    router.push('/(auth)/register');
   };
 
   return (
