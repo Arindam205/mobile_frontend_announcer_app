@@ -9,6 +9,7 @@ interface AuthState {
   name: string | null; // Add name to store the user's name
   role: string | null; // Add role to store the user's role
   stationId: string | null; // Add stationId to store the user's station ID
+  userId: number | null; // Add userId to store the user's ID
 }
 
 interface AuthContextType extends AuthState {
@@ -27,6 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: null, // Initialize as null
     role: null, // Initialize as null
     stationId: null, // Initialize as null
+    userId: null, // Initialize userId as null
   });
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: parsedUserData.name || null,
             role: parsedUserData.role || null,
             stationId: parsedUserData.stationId || null,
+            userId: parsedUserData.userId || null,
           }));
         } else {
           setState(prev => ({
@@ -78,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       // Extract all relevant user data from the response
-      const { token, name, role, stationId } = response.data;
+      const { token, name, role, stationId, userId } = response.data;
       
       // Store the token in SecureStore
       await SecureStore.setItemAsync('token', token);
@@ -88,7 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name,
         role,
         stationId,
-        phoneNumber: formattedPhone
+        phoneNumber: formattedPhone,
+        userId
       };
       await SecureStore.setItemAsync('userData', JSON.stringify(userData));
       
@@ -103,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name,
         role,
         stationId,
+        userId,
       }));
     } catch (error) {
       throw error;
@@ -127,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: null,
         role: null,
         stationId: null,
+        userId: null,
       }));
     } catch (error) {
       throw error;
