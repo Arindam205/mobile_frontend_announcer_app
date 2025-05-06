@@ -11,6 +11,8 @@ import {
   BackHandler,
   Platform,
   KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -49,12 +51,14 @@ const SearchBar = ({
   onSearch, 
   initialValue = '',
   onClear,
-  isSearching
+  isSearching,
+  currentQuery
 }: { 
   onSearch: (query: string) => void,
   initialValue?: string,
   onClear: () => void,
-  isSearching: boolean
+  isSearching: boolean,
+  currentQuery: string
 }) => {
   const [searchText, setSearchText] = useState(initialValue);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -106,7 +110,7 @@ const SearchBar = ({
         <Search size={20} color="#6b7280" style={styles.searchIcon} />
         <TextInput
           ref={searchInputRef}
-          style={styles.searchInput}
+          style={[styles.searchInput, styles.inputFlex]}
           placeholder="Search programs..."
           value={searchText}
           onChangeText={handleTextChange}
@@ -121,9 +125,9 @@ const SearchBar = ({
         />
         {searchText.length > 0 && (
           <TouchableOpacity 
-            onPress={clearSearch}
             style={styles.clearButton}
             activeOpacity={0.7}
+            onPress={clearSearch}
           >
             <X size={18} color="#6b7280" />
           </TouchableOpacity>
@@ -165,6 +169,7 @@ const ProgramSelectionScreen = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -207,6 +212,7 @@ const ProgramSelectionScreen = () => {
   // Handle search from the SearchBar component
   const handleSearch = useCallback((query: string) => {
     setIsSearching(true);
+    setCurrentSearchQuery(query);
     
     // If search is empty, restore original list
     if (query.trim() === '') {
@@ -228,6 +234,7 @@ const ProgramSelectionScreen = () => {
   const handleClearSearch = useCallback(() => {
     setFilteredPrograms(allPrograms);
     setIsSearching(false);
+    setCurrentSearchQuery('');
   }, [allPrograms]);
 
   // Function to fetch programs
@@ -316,7 +323,10 @@ const ProgramSelectionScreen = () => {
   };
 
   // Handle program selection - Redirect to rate-program
-  const handleProgramSelect = (program: any) => {
+  const handleProgramSelect = (program: Program) => {
+    // Dismiss keyboard first
+    Keyboard.dismiss();
+    
     // Navigate directly to rate-program page with the necessary parameters
     router.push({
       pathname: '/(app)/rate-program',
@@ -327,6 +337,11 @@ const ProgramSelectionScreen = () => {
         languageName
       }
     });
+  };
+
+  // Dismiss keyboard when tapping outside searchbar and program list
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
   };
 
   // Render program card
@@ -346,8 +361,8 @@ const ProgramSelectionScreen = () => {
   // Render empty state
   const renderEmptyState = () => (
     <EmptyProgramState 
-      hasSearch={isSearching}
-      searchQuery={''}
+      hasSearch={currentSearchQuery.length > 0}
+      searchQuery={currentSearchQuery}
       onClearSearch={handleClearSearch}
     />
   );
@@ -367,97 +382,100 @@ const ProgramSelectionScreen = () => {
   return (
     <ErrorBoundary>
       <SafeAreaView style={styles.container}>
-        <View style={styles.flexGrow}>
-          {/* Header */}
-          <LinearGradient
-            colors={['#3b82f6', '#8b5cf6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.header}
-          >
-            <View style={styles.headerContent}>
-              <Text style={styles.headerTitle}>Select Program</Text>
-              
-              <View style={styles.channelInfoContainer}>
-                <View>
-                  <Text style={styles.channelName}>{selectedChannel?.channelName}</Text>
-                  <Text style={styles.stationNameText}>{stationName}</Text>
-                  <Text style={styles.languageNameText}>{languageName}</Text>
-                </View>
-              </View>
-              
-              {/* Mic animation in the header */}
-              <View style={styles.micAnimationContainer}>
-                <MicAnimation size={35} color="#fff" />
-              </View>
-            </View>
-          </LinearGradient>
-
-          {/* Program List */}
-          {isLoading ? (
-            <View style={styles.contentContainer}>
-              <View style={styles.searchContainer}>
-                <View style={styles.searchInputContainer}>
-                  <Search size={20} color="#6b7280" style={styles.searchIcon} />
-                  <View style={styles.searchInputPlaceholder} />
-                </View>
-              </View>
-              <ProgramLoadingSkeleton count={6} />
-            </View>
-          ) : (
-            <Animated.View 
-              style={[
-                styles.contentContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: translateY }]
-                }
-              ]}
+        <TouchableWithoutFeedback onPress={dismissKeyboard}>
+          <View style={styles.flexGrow}>
+            {/* Header */}
+            <LinearGradient
+              colors={['#3b82f6', '#8b5cf6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.header}
             >
-              {/* Search bar outside FlatList */}
-              <SearchBar 
-                onSearch={handleSearch} 
-                onClear={handleClearSearch}
-                isSearching={isSearching}
-              />
-              
-              <FlatList
-                data={displayedPrograms}
-                renderItem={renderProgramItem}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={renderEmptyState}
-                ListFooterComponent={isLoadingMore ? renderFooterLoader : null}
-                initialNumToRender={10}
-                maxToRenderPerBatch={10}
-                windowSize={10}
-                contentInsetAdjustmentBehavior="automatic"
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                onEndReached={handleLoadMore}
-                onEndReachedThreshold={0.5}
-                // Critical props to prevent keyboard issues
-                keyboardShouldPersistTaps="always"
-                keyboardDismissMode="none"
-                removeClippedSubviews={false}
-              />
-            </Animated.View>
-          )}
-          
-          {/* API Error display */}
-          {apiError && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{apiError}</Text>
-              <TouchableOpacity 
-                style={styles.retryButton}
-                onPress={() => fetchPrograms()}
+              <View style={styles.headerContent}>
+                <Text style={styles.headerTitle}>Select Program</Text>
+                
+                <View style={styles.channelInfoContainer}>
+                  <View>
+                    <Text style={styles.channelName}>{selectedChannel?.channelName}</Text>
+                    <Text style={styles.stationNameText}>{stationName}</Text>
+                    <Text style={styles.languageNameText}>{languageName}</Text>
+                  </View>
+                </View>
+                
+                {/* Mic animation in the header */}
+                <View style={styles.micAnimationContainer}>
+                  <MicAnimation size={35} color="#fff" />
+                </View>
+              </View>
+            </LinearGradient>
+
+            {/* Program List */}
+            {isLoading ? (
+              <View style={styles.contentContainer}>
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchInputContainer}>
+                    <Search size={20} color="#6b7280" style={styles.searchIcon} />
+                    <View style={styles.searchInputPlaceholder} />
+                  </View>
+                </View>
+                <ProgramLoadingSkeleton count={6} />
+              </View>
+            ) : (
+              <Animated.View 
+                style={[
+                  styles.contentContainer,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: translateY }]
+                  }
+                ]}
               >
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+                {/* Search bar outside FlatList */}
+                <SearchBar 
+                  onSearch={handleSearch} 
+                  onClear={handleClearSearch}
+                  isSearching={isSearching}
+                  currentQuery={currentSearchQuery}
+                />
+                
+                <FlatList
+                  data={displayedPrograms}
+                  renderItem={renderProgramItem}
+                  keyExtractor={(item) => item.id.toString()}
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={renderEmptyState}
+                  ListFooterComponent={isLoadingMore ? renderFooterLoader : null}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={10}
+                  contentInsetAdjustmentBehavior="automatic"
+                  refreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={0.5}
+                  // Critical props to prevent keyboard issues
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  removeClippedSubviews={Platform.OS === 'android'}
+                />
+              </Animated.View>
+            )}
+            
+            {/* API Error display */}
+            {apiError && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{apiError}</Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={() => fetchPrograms()}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </TouchableWithoutFeedback>
       </SafeAreaView>
     </ErrorBoundary>
   );
@@ -469,6 +487,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   flexGrow: {
+    flex: 1,
+  },
+  inputFlex: {
     flex: 1,
   },
   header: {
@@ -531,11 +552,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
-    paddingTop: 5,
+    paddingTop: 0,
   },
   searchContainer: {
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   searchInputContainer: {
     flexDirection: 'row',
@@ -562,7 +583,6 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   searchInput: {
-    flex: 1,
     fontSize: 16,
     color: '#1f2937',
     height: '100%',
