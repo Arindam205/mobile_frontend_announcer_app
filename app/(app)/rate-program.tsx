@@ -23,7 +23,7 @@ import SuccessOverlay from '../../components/SuccessOverlay';
 import { Music } from 'lucide-react-native';
 import DateTimePicker from 'react-native-modal-datetime-picker';
 
-// Define rating criteria for program
+// Define rating criteria
 const RATING_CRITERIA = [
   {
     id: 'content',
@@ -97,7 +97,7 @@ const CalendarButton: React.FC<{
   );
 };
 
-// Half Star Rating Component - Same as in rate-announcer.tsx
+// Half Star Rating Component with enhanced validation
 const PerfectStarRating: React.FC<{
   title: string;
   description: string;
@@ -106,6 +106,7 @@ const PerfectStarRating: React.FC<{
   maxValue?: number;
   hasError?: boolean;
   disabled?: boolean;
+  onCardPress: () => void; // New prop for handling card press
 }> = ({
   title,
   description,
@@ -114,6 +115,7 @@ const PerfectStarRating: React.FC<{
   maxValue = 5,
   hasError = false,
   disabled = false,
+  onCardPress,
 }) => {
   // Helper to render individual stars
   const renderStar = (position: number) => {
@@ -153,21 +155,36 @@ const PerfectStarRating: React.FC<{
           {/* Touch areas */}
           <TouchableOpacity
             style={styles.leftHalfTouch}
-            onPress={() => !disabled && onChange(position - 0.5)}
-            disabled={disabled}
+            onPress={() => {
+              if (disabled) {
+                onCardPress(); // Call onCardPress when disabled
+              } else {
+                onChange(position - 0.5);
+              }
+            }}
           />
           <TouchableOpacity
             style={styles.rightHalfTouch}
-            onPress={() => !disabled && onChange(position)}
-            disabled={disabled}
+            onPress={() => {
+              if (disabled) {
+                onCardPress(); // Call onCardPress when disabled
+              } else {
+                onChange(position);
+              }
+            }}
           />
         </View>
       </View>
     );
   };
 
+  // Create a touchable container that will call onCardPress if date is not selected
   return (
-    <View style={[styles.ratingContainer, hasError && styles.errorContainer]}>
+    <TouchableOpacity 
+      style={[styles.ratingContainer, hasError && styles.errorContainer]}
+      onPress={disabled ? onCardPress : undefined}
+      activeOpacity={disabled ? 0.8 : 1}
+    >
       <View style={styles.ratingHeader}>
         <Text style={styles.ratingTitle}>{title}</Text>
         {hasError && <Text style={styles.errorText}>Please rate this</Text>}
@@ -178,7 +195,7 @@ const PerfectStarRating: React.FC<{
       <View style={styles.starsRow}>
         {Array.from({ length: maxValue }).map((_, index) => renderStar(index + 1))}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -353,18 +370,33 @@ export default function RateProgramScreen() {
     }
   }, [selectedChannel, programId, languageId, router]);
 
-  // Handle star rating selection with date validation
-  const handleRatingSelect = (criteriaId: keyof RatingsState, rating: number) => {
-    // Check if date is selected first
+  // Handle date validation when ANY interaction occurs
+  const handleDateValidation = () => {
+    // Check if date is selected
     if (!selectedDate) {
       // Show date error
       setDateError('Please select a date first');
+      
+      // Scroll to top to make sure the date field is visible
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: true });
+      }
+      
       // Show alert to guide the user
       Alert.alert(
         'Date Required',
         'Please select the date you listened to this program before rating',
         [{ text: 'OK' }]
       );
+      return false;
+    }
+    return true;
+  };
+
+  // Enhanced handle star rating selection with date validation
+  const handleRatingSelect = (criteriaId: keyof RatingsState, rating: number) => {
+    // Validate date first
+    if (!handleDateValidation()) {
       return;
     }
     
@@ -405,6 +437,12 @@ export default function RateProgramScreen() {
     // Validate date selection
     if (!selectedDate) {
       setDateError('Please select a date to rate this program');
+      
+      // Scroll to top to make sure the date field is visible
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: true });
+      }
+      
       Alert.alert(
         'Date Required',
         'Please select a date when you listened to this program',
@@ -529,10 +567,16 @@ export default function RateProgramScreen() {
             contentContainerStyle={styles.scrollViewContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Date Selection */}
-            <View style={styles.dateSelectionContainer}>
-              <Text style={styles.dateSelectionTitle}>
-                Select the date you listened to this program
+            {/* Date Selection - Highlighted with animation or color if there's an error */}
+            <View style={[
+              styles.dateSelectionContainer,
+              dateError ? styles.dateSelectionError : null
+            ]}>
+              <Text style={[
+                styles.dateSelectionTitle,
+                dateError ? styles.dateSelectionTitleError : null
+              ]}>
+                {dateError ? '* Select the date you listened to this program' : 'Select the date you listened to this program'}
               </Text>
               
               <CalendarButton 
@@ -570,6 +614,7 @@ export default function RateProgramScreen() {
                 onChange={(value) => handleRatingSelect(criteria.id as keyof RatingsState, value)}
                 hasError={validationErrors.includes(criteria.title)}
                 disabled={areStarsDisabled}
+                onCardPress={handleDateValidation}
               />
             ))}
 
@@ -696,6 +741,14 @@ const styles = StyleSheet.create({
   },
   dateSelectionContainer: {
     marginBottom: 24,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  dateSelectionError: {
+    backgroundColor: 'rgba(254, 226, 226, 0.5)',
+    borderColor: '#FCA5A5',
   },
   dateSelectionTitle: {
     fontSize: 16,
@@ -703,6 +756,10 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     marginBottom: 12,
     textAlign: 'center',
+  },
+  dateSelectionTitleError: {
+    color: '#DC2626',
+    fontWeight: '700',
   },
   calendarButton: {
     backgroundColor: 'white',
