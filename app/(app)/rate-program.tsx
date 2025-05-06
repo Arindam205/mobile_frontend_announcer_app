@@ -16,12 +16,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useChannel } from '../../src/context/ChannelContext';
+import { useAuth } from '../../src/context/AuthContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { BackHandler } from 'react-native';
 import { useCallback } from 'react';
 import SuccessOverlay from '../../components/SuccessOverlay';
 import { Music } from 'lucide-react-native';
 import DateTimePicker from 'react-native-modal-datetime-picker';
+import { api } from '../../src/api/config';
 
 // Define rating criteria
 const RATING_CRITERIA = [
@@ -53,6 +55,35 @@ interface RatingsState {
   presentation: number | null;
   production: number | null;
   impact: number | null;
+}
+
+// Interface for API response
+interface ProgramRatingResponse {
+  message: string;
+  success: boolean;
+  ratingDetails: {
+    programRatingId: number;
+    listenerId: number;
+    programId: number;
+    programName: string;
+    timestamp: string;
+    programDate: string;
+    content: number;
+    presentation: number;
+    overallProduction: number;
+    impact: number;
+    stationName: string;
+    channelName: string;
+    languageName: string;
+  } | null;
+  averageRatingDetails?: {
+    avgContent: number;
+    avgPresentation: number;
+    avgOverallProduction: number;
+    avgImpact: number;
+    avgOverallRating: number;
+    totalRatings: number;
+  };
 }
 
 // Custom Calendar Button component
@@ -106,7 +137,7 @@ const PerfectStarRating: React.FC<{
   maxValue?: number;
   hasError?: boolean;
   disabled?: boolean;
-  onCardPress: () => void; // New prop for handling card press
+  onCardPress: () => void; // For handling card press
 }> = ({
   title,
   description,
@@ -207,6 +238,8 @@ export default function RateProgramScreen() {
   
   // Get channel data from context
   const { selectedChannel, stationName } = useChannel();
+  // Get auth data for stationId
+  const { stationId } = useAuth();
 
   // State variables
   const [isLoading, setIsLoading] = useState(false);
@@ -224,6 +257,7 @@ export default function RateProgramScreen() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [responseMessage, setResponseMessage] = useState<string | null>(null);
   
   // Animation values for music icon
   const musicIconRotate = useRef(new Animated.Value(0)).current;
@@ -326,6 +360,7 @@ export default function RateProgramScreen() {
       setShowSuccess(false);
       setSelectedDate(null);
       setDateError(null);
+      setResponseMessage(null);
 
       setTimeout(() => {
         if (scrollViewRef.current) {
@@ -474,22 +509,76 @@ export default function RateProgramScreen() {
     try {
       setIsSubmitting(true);
       
-      // Simulate successful submission
-      setTimeout(() => {
-        setIsSubmitting(false);
+      // Format the selected date for API (YYYY-MM-DD)
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      
+      // Create current timestamp in ISO format for the API
+      const timestamp = new Date().toISOString();
+      
+      // Get program ID from params
+      const programIdNumber = Number(programId);
+      
+      // Prepare API request body
+      const requestBody = {
+        stationId: stationId,
+        channelId: selectedChannel?.channelId,
+        languageId: Number(languageId),
+        timestamp: timestamp,
+        programDate: formattedDate,
+        programId: programIdNumber,
+        rating: {
+          content: ratings.content,
+          presentation: ratings.presentation,
+          overallProduction: ratings.production, // Map 'production' to 'overallProduction'
+          impact: ratings.impact,
+        }
+      };
+      
+      console.log('Submitting program rating:', requestBody);
+      
+      // Call the API
+      const response = await api.post<ProgramRatingResponse>('/api/program-ratings/submit', requestBody);
+      
+      console.log('Program rating submission response:', response.data);
+      
+      setIsSubmitting(false);
+      
+      // Extract important information from the response
+      const { success, message, ratingDetails, averageRatingDetails } = response.data;
+      
+      setResponseMessage(message);
+      
+      if (success) {
+        // Rating was submitted successfully
         setIsSuccess(true);
         setShowSuccess(true);
+        
+        // Display average ratings if provided (optional)
+        if (averageRatingDetails) {
+          console.log('Average program ratings:', averageRatingDetails);
+        }
         
         // Navigate back after a delay
         setTimeout(() => {
           router.replace('/(app)/home');
         }, 2500);
-      }, 1000);
-      
-    } catch (error) {
-      // Won't show errors
+      } else {
+        // Rating was not successful
+        Alert.alert(
+          'Rating Submission',
+          message || 'Failed to submit rating',
+          [{ text: 'OK', onPress: () => router.replace('/(app)/home') }]
+        );
+      }
+    } catch (error: any) {
+      console.error('Error submitting program rating:', error);
       setIsSubmitting(false);
-      console.log('Submission simulation completed');
+      
+      Alert.alert(
+        'Submission Error',
+        error.response?.data?.message || 'Failed to submit rating. Please try again later.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -638,7 +727,7 @@ export default function RateProgramScreen() {
           {/* Success Overlay */}
           <SuccessOverlay
             visible={showSuccess}
-            message="Rating Submitted!"
+            message={responseMessage || "Rating Submitted!"}
             subMessage="Thank you for your feedback"
             type="program"
           />
