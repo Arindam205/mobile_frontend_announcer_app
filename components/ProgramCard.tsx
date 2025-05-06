@@ -189,7 +189,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 24,
+    paddingVertical: 26
   },
   contentContainer: {
     flex: 1,
@@ -201,13 +202,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   iconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 12
   },
   programName: {
     fontSize: 16,
@@ -218,7 +219,8 @@ const styles = StyleSheet.create({
   detailsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 44, // Aligns with text after icon
+    marginLeft: 50, // Aligns with text after icon
+    paddingLeft: 0
   },
   channelText: {
     fontSize: 14,
