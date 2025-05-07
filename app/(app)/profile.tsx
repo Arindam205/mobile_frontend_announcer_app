@@ -9,14 +9,17 @@ import {
   Modal,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import { api } from '../../src/api/config';
+import { useCallback } from 'react';
 
 // Get window dimensions
 const windowWidth = Dimensions.get('window').width;
@@ -39,16 +42,26 @@ const badgeImages = {
   [BadgeType.DIAMOND]: require('../../assets/images/diamond.png'),
 };
 
+// Interface for badge API response
+interface BadgeInfo {
+  programRatings: number;
+  announcerRatings: number;
+  totalRatings: number;
+  badge: {
+    badgeId: number | null;
+    badgeName: string;
+    ratings: string;
+  };
+}
+
 // RatingBadge Component
 const RatingBadge = ({ 
   type, 
-  current, 
-  required, 
+  range,
   size = 'small' 
 }: {
   type: string;
-  current: number;
-  required: number;
+  range: string;
   size?: 'small' | 'large';
 }) => {
   // For small badges, display in the format "current/required"
@@ -66,7 +79,7 @@ const RatingBadge = ({
             <Text style={styles.badgeIcon}>⭐</Text>
           )}
         </View>
-        <Text style={styles.badgeProgressText}>{current}/{required}</Text>
+        <Text style={styles.badgeProgressText}>{range}</Text>
       </View>
     );
   }
@@ -87,30 +100,49 @@ const RatingBadge = ({
   );
 };
 
+// EmptyBadgeState Component - For users with no ratings
+const EmptyBadgeState = () => {
+  return (
+    <View style={styles.emptyBadgeContainer}>
+      <Text style={styles.emptyBadgeTitle}>No Badge Yet</Text>
+      <Text style={styles.emptyBadgeText}>
+        Rate programs and announcers to earn your first badge!
+      </Text>
+    </View>
+  );
+};
+
 // BadgeDisplay Component
-const BadgeDisplay = ({ totalRatings }: { totalRatings: number }) => {
-  // Define badge thresholds
+const BadgeDisplay = ({ totalRatings, badgeInfo }: { totalRatings: number, badgeInfo: BadgeInfo | null }) => {
+  if (!badgeInfo || badgeInfo.totalRatings === 0) {
+    return <EmptyBadgeState />;
+  }
+  
+  // Define badge ranges
   const badges = [
-    { type: BadgeType.BRONZE, required: 30 },
-    { type: BadgeType.SILVER, required: 100 },
-    { type: BadgeType.GOLD, required: 150 },
-    { type: BadgeType.DIAMOND, required: 300 }
+    { type: BadgeType.BRONZE, range: "1 - 30" },
+    { type: BadgeType.SILVER, range: "31 - 100" },
+    { type: BadgeType.GOLD, range: "101 - 300" },
+    { type: BadgeType.DIAMOND, range: "300+" }
   ];
   
   // Determine the highest badge earned
   let highestBadge = BadgeType.NONE;
   
-  for (const badge of badges) {
-    if (totalRatings >= badge.required) {
-      highestBadge = badge.type;
-    } else {
-      break;
-    }
+  // Map the badgeName to our badge types
+  if (badgeInfo.badge.badgeName.toLowerCase().includes('bronze')) {
+    highestBadge = BadgeType.BRONZE;
+  } else if (badgeInfo.badge.badgeName.toLowerCase().includes('silver')) {
+    highestBadge = BadgeType.SILVER;
+  } else if (badgeInfo.badge.badgeName.toLowerCase().includes('gold')) {
+    highestBadge = BadgeType.GOLD;
+  } else if (badgeInfo.badge.badgeName.toLowerCase().includes('diamond')) {
+    highestBadge = BadgeType.DIAMOND;
   }
   
   return (
     <View style={styles.container}>
-      <Text style={styles.yourRatingsText}>Your Ratings {totalRatings}</Text>
+      <Text style={styles.yourRatingsText}>Your Ratings: {totalRatings}</Text>
       
       {/* Main Badge Display */}
       <View style={styles.mainBadgeContainer}>
@@ -118,16 +150,18 @@ const BadgeDisplay = ({ totalRatings }: { totalRatings: number }) => {
           {highestBadge !== BadgeType.NONE ? (
             <RatingBadge 
               type={highestBadge} 
-              current={totalRatings} 
-              required={0} 
+              range=""
               size="large" 
             />
           ) : (
             <View style={styles.emptyBadge}>
-              <Text style={styles.emptyBadgeText}>⭐</Text>
+              <Text style={styles.emptyBadgeIcon}>⭐</Text>
             </View>
           )}
         </View>
+        {highestBadge !== BadgeType.NONE && (
+          <Text style={styles.badgeName}>{badgeInfo.badge.badgeName}</Text>
+        )}
       </View>
       
       {/* Badge Progress Display */}
@@ -136,8 +170,7 @@ const BadgeDisplay = ({ totalRatings }: { totalRatings: number }) => {
           <RatingBadge 
             key={index}
             type={badge.type}
-            current={Math.min(totalRatings, badge.required)}
-            required={badge.required}
+            range={badge.range}
             size="small"
           />
         ))}
@@ -288,25 +321,21 @@ const RatingSummary = ({
   );
 };
 
-// Interface for the user profile data
-interface UserProfile {
-  name: string;
-  totalRatings: number;
-  announcerRatings: number;
-  programRatings: number;
-}
-
 // ProfileScreen Component
 function ProfileScreen() {
   // Only get the logout function once to avoid redeclaration
   const { logout } = useAuth();
   
-  const [userProfile, setUserProfile] = useState<UserProfile>({
+  const [userProfile, setUserProfile] = useState({
     name: '',
-    totalRatings: 35,
-    announcerRatings: 24,
-    programRatings: 11
+    totalRatings: 0,
+    announcerRatings: 0,
+    programRatings: 0
   });
+  
+  const [badgeInfo, setBadgeInfo] = useState<BadgeInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
 
   // Fetch user data from SecureStore where the login response is saved
   useEffect(() => {
@@ -337,11 +366,56 @@ function ProfileScreen() {
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
+        setLoadingError('Failed to load profile data');
       }
     };
 
     getUserData();
   }, []);
+  
+  // Use useFocusEffect to fetch badge info whenever the user returns to this screen
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Profile screen focused - fetching badge info');
+      fetchBadgeInfo();
+      
+      return () => {
+        // Clean up function if needed when screen loses focus
+        console.log('Profile screen unfocused');
+      };
+    }, [])
+  );
+  
+  // Fetch badge info from API
+  const fetchBadgeInfo = async () => {
+    setIsLoading(true);
+    setLoadingError(null);
+    
+    try {
+      const response = await api.get<BadgeInfo>('/api/badge/info');
+      
+      // Update badge info state
+      setBadgeInfo(response.data);
+      
+      // Update profile ratings data
+      setUserProfile(prev => ({
+        ...prev,
+        totalRatings: response.data.totalRatings,
+        announcerRatings: response.data.announcerRatings,
+        programRatings: response.data.programRatings
+      }));
+      
+      console.log('Badge info fetched successfully:', response.data);
+    } catch (error) {
+      console.error('Error fetching badge info:', error);
+      setLoadingError('Failed to load badge information');
+      
+      // If we failed to get badge info, still try to show the profile
+      // with whatever data we have
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Handle logout
   const handleLogout = async () => {
@@ -353,6 +427,15 @@ function ProfileScreen() {
       Alert.alert('Logout Error', 'Failed to log out. Please try again.');
     }
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.containerMain, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.containerMain}>
@@ -368,7 +451,22 @@ function ProfileScreen() {
         
         {/* Badge Display Section */}
         <View style={styles.contentContainer}>
-          <BadgeDisplay totalRatings={userProfile.totalRatings} />
+          {loadingError ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{loadingError}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={fetchBadgeInfo}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <BadgeDisplay 
+              totalRatings={userProfile.totalRatings} 
+              badgeInfo={badgeInfo}
+            />
+          )}
           
           {/* Rating Summary Cards */}
           <RatingSummary
@@ -559,9 +657,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyBadgeText: {
+  emptyBadgeIcon: {
     fontSize: 32,
     color: '#FFD700',
+  },
+  badgeName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#4F46E5',
+    marginTop: 8,
   },
   badgeProgressContainer: {
     flexDirection: 'row',
@@ -643,5 +747,70 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 22,
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  errorContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 15,
+    marginTop: -40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    paddingBottom: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#EF4444',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  emptyBadgeContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 15,
+    marginTop: -40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    paddingBottom: 20,
+  },
+  emptyBadgeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4B5563',
+    marginBottom: 10,
+  },
+  emptyBadgeText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 16,
   },
 });
