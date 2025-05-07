@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   SafeAreaView,
   Animated,
+  AppState
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -18,7 +19,6 @@ import { useChannel } from '../../src/context/ChannelContext';
 import { useAuth } from '../../src/context/AuthContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { BackHandler } from 'react-native';
-import { useCallback } from 'react';
 import SuccessOverlay from '../../components/SuccessOverlay';
 import MicAnimation from '../../components/MicAnimation';
 import { api } from '../../src/api/config';
@@ -188,11 +188,43 @@ export default function RateAnnouncerScreen() {
   const [responseMessage, setResponseMessage] = useState<string | null>(null);
   const [nextRatingTime, setNextRatingTime] = useState<string | null>(null);
   
+  // Reference to track timeout
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Get language from URL params
   const languageId = params.languageId as string;
   const languageName = params.languageName as string;
 
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Add a handler function to dismiss success overlay
+  const handleDismissSuccess = useCallback(() => {
+    setShowSuccess(false);
+  }, []);
+  
+  // Add AppState listener effect to dismiss overlay when app goes to background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'background' && showSuccess) {
+        setShowSuccess(false);
+      }
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [showSuccess]);
+  
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      // Also ensure success overlay is dismissed when component unmounts
+      setShowSuccess(false);
+    };
+  }, []);
   
   // Reset ratings every time this screen is focused
   useFocusEffect(
@@ -338,16 +370,26 @@ export default function RateAnnouncerScreen() {
         setShowSuccess(true);
         
         // Navigate back after a delay
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+          setShowSuccess(false); // Hide overlay before navigation
           router.replace('/(app)/home');
         }, 2500);
+        
+        // Store timer reference for cleanup
+        timerRef.current = timer;
       } else {
         // Rating was not successful (e.g., user already rated recently)
         // Show feedback to the user with details about when they can rate again
         Alert.alert(
           'Rating Submission',
           message,
-          [{ text: 'OK', onPress: () => router.replace('/(app)/home') }]
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              setShowSuccess(false); // Ensure overlay is hidden
+              router.replace('/(app)/home');
+            }
+          }]
         );
       }
       
@@ -368,7 +410,7 @@ export default function RateAnnouncerScreen() {
     router.replace('/(app)/rating-selection'); // This will go back to the rating-selection screen
   };
 
-  // Calculate dynamic button style based on state
+  // Calculate dynamic button color based on state
   const getButtonStyle = () => {
     if (isSuccess) {
       return [styles.submitButton, styles.successButton];
@@ -453,11 +495,12 @@ export default function RateAnnouncerScreen() {
             </TouchableOpacity>
           </ScrollView>
           
-          {/* Success Overlay */}
+          {/* Success Overlay with onDismiss handler */}
           <SuccessOverlay
             visible={showSuccess}
             message={responseMessage || "Rating Submitted!"}
             subMessage={nextRatingTime ? `You can rate again after ${nextRatingTime}` : "Thank you for your feedback"}
+            onDismiss={handleDismissSuccess}
           />
         </KeyboardAvoidingView>
       </SafeAreaView>

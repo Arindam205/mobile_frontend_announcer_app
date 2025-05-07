@@ -6,7 +6,9 @@ import {
   Modal, 
   Animated, 
   Easing, 
-  Dimensions 
+  Dimensions,
+  AppState,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { CheckCircle2 } from 'lucide-react-native';
 import RatingAnimation from './RatingAnimation';
@@ -16,6 +18,7 @@ interface SuccessOverlayProps {
   message: string;
   subMessage?: string;
   type?: 'rating' | 'program';
+  onDismiss?: () => void; // Add an optional dismiss callback
 }
 
 const { width } = Dimensions.get('window');
@@ -24,12 +27,29 @@ const SuccessOverlay: React.FC<SuccessOverlayProps> = ({
   visible, 
   message,
   subMessage,
-  type = 'rating'
+  type = 'rating',
+  onDismiss
 }) => {
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const checkmarkScaleAnim = useRef(new Animated.Value(0)).current;
+  
+  // Handle app state changes
+  useEffect(() => {
+    // Track app state to dismiss overlay when app goes to background
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      // If app goes to background and overlay is visible, call onDismiss
+      if (nextAppState === 'background' && visible && onDismiss) {
+        onDismiss();
+      }
+    });
+    
+    return () => {
+      // Clean up event listener on unmount
+      subscription.remove();
+    };
+  }, [visible, onDismiss]);
   
   useEffect(() => {
     if (visible) {
@@ -57,6 +77,15 @@ const SuccessOverlay: React.FC<SuccessOverlayProps> = ({
           })
         ])
       ]).start();
+      
+      // Auto-dismiss after a certain period if onDismiss provided
+      if (onDismiss) {
+        const timer = setTimeout(() => {
+          onDismiss();
+        }, 2500);
+        
+        return () => clearTimeout(timer);
+      }
     } else {
       // Reset animations when hidden
       fadeAnim.setValue(0);
@@ -67,52 +96,63 @@ const SuccessOverlay: React.FC<SuccessOverlayProps> = ({
 
   if (!visible) return null;
 
+  // Allow tapping outside to dismiss if onDismiss is provided
+  const handleOutsideTap = () => {
+    if (onDismiss) {
+      onDismiss();
+    }
+  };
+
   return (
     <Modal
       transparent
       visible={visible}
       animationType="none"
     >
-      <View style={styles.container}>
-        <Animated.View 
-          style={[
-            styles.overlay,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
-          ]}
-        >
-          {/* Only show rating animation for announcer ratings, not for program */}
-          {type === 'rating' && (
-            <View style={styles.animationContainer}>
-              <RatingAnimation size={40} color="#FFD700" />
-            </View>
-          )}
-          
-          <Animated.View
-            style={[
-              styles.checkmarkContainer,
-              {
-                transform: [{ scale: checkmarkScaleAnim }],
-                backgroundColor: type === 'rating' ? '#ECFDF5' : '#F3E8FF',
-              }
-            ]}
-          >
-            <CheckCircle2 
-              size={56} 
-              color={type === 'rating' ? "#10B981" : "#8b5cf6"} 
-              strokeWidth={2} 
-            />
-          </Animated.View>
-          
-          <Text style={styles.message}>{message}</Text>
-          
-          {subMessage && (
-            <Text style={styles.subMessage}>{subMessage}</Text>
-          )}
-        </Animated.View>
-      </View>
+      <TouchableWithoutFeedback onPress={handleOutsideTap}>
+        <View style={styles.container}>
+          <TouchableWithoutFeedback>
+            <Animated.View 
+              style={[
+                styles.overlay,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ scale: scaleAnim }]
+                }
+              ]}
+            >
+              {/* Only show rating animation for announcer ratings, not for program */}
+              {type === 'rating' && (
+                <View style={styles.animationContainer}>
+                  <RatingAnimation size={40} color="#FFD700" />
+                </View>
+              )}
+              
+              <Animated.View
+                style={[
+                  styles.checkmarkContainer,
+                  {
+                    transform: [{ scale: checkmarkScaleAnim }],
+                    backgroundColor: type === 'rating' ? '#ECFDF5' : '#F3E8FF',
+                  }
+                ]}
+              >
+                <CheckCircle2 
+                  size={56} 
+                  color={type === 'rating' ? "#10B981" : "#8b5cf6"} 
+                  strokeWidth={2} 
+                />
+              </Animated.View>
+              
+              <Text style={styles.message}>{message}</Text>
+              
+              {subMessage && (
+                <Text style={styles.subMessage}>{subMessage}</Text>
+              )}
+            </Animated.View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };

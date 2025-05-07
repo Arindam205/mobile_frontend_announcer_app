@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Animated,
   Easing,
+  AppState
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -19,7 +20,6 @@ import { useChannel } from '../../src/context/ChannelContext';
 import { useAuth } from '../../src/context/AuthContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { BackHandler } from 'react-native';
-import { useCallback } from 'react';
 import SuccessOverlay from '../../components/SuccessOverlay';
 import { Music } from 'lucide-react-native';
 import DateTimePicker from 'react-native-modal-datetime-picker';
@@ -259,6 +259,9 @@ export default function RateProgramScreen() {
   const [dateError, setDateError] = useState<string | null>(null);
   const [responseMessage, setResponseMessage] = useState<string | null>(null);
   
+  // Reference to track timer for cleanup
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Animation values for music icon
   const musicIconRotate = useRef(new Animated.Value(0)).current;
   const musicIconScale = useRef(new Animated.Value(1)).current;
@@ -276,6 +279,34 @@ export default function RateProgramScreen() {
   const currentDate = new Date();
   // Min date for validation (May 1, 2025)
   const minDate = new Date(2025, 4, 1); // Month is 0-based, so 4 = May
+
+  // Handle dismissing success overlay
+  const handleDismissSuccess = useCallback(() => {
+    setShowSuccess(false);
+  }, []);
+  
+  // Add AppState listener to detect when app goes to background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'background' && showSuccess) {
+        setShowSuccess(false);
+      }
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [showSuccess]);
+  
+  // Cleanup timer and reset success state when component unmounts
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      setShowSuccess(false);
+    };
+  }, []);
 
   // Set data ready
   useEffect(() => {
@@ -375,17 +406,24 @@ export default function RateProgramScreen() {
     }, [])
   );
   
-  // Handle back button presses
+  // Handle back button presses - CORRECTED VERSION
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        router.replace('/(app)/program-selection');
+        // Navigate back to program-selection with the required parameters
+        router.push({
+          pathname: '/(app)/program-selection',
+          params: {
+            languageId,
+            languageName
+          }
+        });
         return true;
       };
       
       BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-    }, [router])
+    }, [router, languageId, languageName])
   );
   
   // Make sure we have the required data
@@ -558,16 +596,32 @@ export default function RateProgramScreen() {
           console.log('Average program ratings:', averageRatingDetails);
         }
         
-        // Navigate back after a delay
-        setTimeout(() => {
+        // Navigate to home after a delay
+        const timer = setTimeout(() => {
+          setShowSuccess(false); // Hide overlay before navigation
           router.replace('/(app)/home');
         }, 2500);
+        
+        // Store timer reference for cleanup
+        timerRef.current = timer;
       } else {
         // Rating was not successful
         Alert.alert(
           'Rating Submission',
           message || 'Failed to submit rating',
-          [{ text: 'OK', onPress: () => router.replace('/(app)/home') }]
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              setShowSuccess(false); // Ensure overlay is hidden
+              router.push({
+                pathname: '/(app)/program-selection',
+                params: {
+                  languageId,
+                  languageName
+                }
+              });
+            } 
+          }]
         );
       }
     } catch (error: any) {
@@ -724,12 +778,13 @@ export default function RateProgramScreen() {
             </TouchableOpacity>
           </ScrollView>
           
-          {/* Success Overlay */}
+          {/* Success Overlay with onDismiss handler */}
           <SuccessOverlay
             visible={showSuccess}
             message={responseMessage || "Rating Submitted!"}
             subMessage="Thank you for your feedback"
             type="program"
+            onDismiss={handleDismissSuccess}
           />
         </KeyboardAvoidingView>
       </SafeAreaView>

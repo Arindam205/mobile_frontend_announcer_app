@@ -179,10 +179,12 @@ const ProgramSelectionScreen = () => {
   const languageId = params.languageId as string;
   const languageName = params.languageName as string;
 
-  // Handle back button presses
+  // Handle back button presses - FIXED VERSION
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        // Just use router.back() instead of router.replace
+        // This preserves the navigation history
         router.replace('/(app)/rating-selection');
         return true;
       };
@@ -192,11 +194,29 @@ const ProgramSelectionScreen = () => {
     }, [router])
   );
 
+  // Log params when the component focuses
+  useFocusEffect(
+    useCallback(() => {
+      console.log("[ProgramSelection] Screen focused with params:", { 
+        languageId, 
+        languageName, 
+        selectedChannel: selectedChannel?.channelId
+      });
+    }, [languageId, languageName, selectedChannel])
+  );
+
   // Make sure we have the required data
   useEffect(() => {
     if (!selectedChannel || !languageId) {
       console.error('Missing required data', { selectedChannel, languageId });
-      router.replace('/(app)/rating-selection');
+      
+      // Instead of immediate navigate, display error and then navigate
+      setApiError('Missing required channel or language information. Redirecting to home...');
+      
+      // Give user a moment to see the error before redirecting
+      setTimeout(() => {
+        router.replace('/(app)/rating-selection');
+      }, 1500);
     }
   }, [selectedChannel, languageId, router]);
 
@@ -295,7 +315,9 @@ const ProgramSelectionScreen = () => {
   
   // Load programs data when component mounts
   useEffect(() => {
-    fetchPrograms();
+    if (selectedChannel?.channelId && languageId) {
+      fetchPrograms();
+    }
   }, [selectedChannel, languageId]);
   
   // Handle pull-to-refresh
