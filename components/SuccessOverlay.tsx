@@ -109,7 +109,6 @@ const SuccessOverlay: React.FC<SuccessOverlayProps> = ({
       visible={visible}
       animationType="none"
     >
-      <TouchableWithoutFeedback onPress={handleOutsideTap}>
         <View style={styles.container}>
           <TouchableWithoutFeedback>
             <Animated.View 
@@ -152,7 +151,6 @@ const SuccessOverlay: React.FC<SuccessOverlayProps> = ({
             </Animated.View>
           </TouchableWithoutFeedback>
         </View>
-      </TouchableWithoutFeedback>
     </Modal>
   );
 };
