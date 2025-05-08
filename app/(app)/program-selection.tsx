@@ -42,11 +42,28 @@ interface Program {
   createdAt: string;
 }
 
-const ITEMS_PER_BATCH = 10;
+// Define the paginated response interface
+interface PaginatedResponse {
+  content: Program[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+    offset: number;
+  };
+  totalPages: number;
+  totalElements: number;
+  last: boolean;
+  size: number;
+  number: number;
+  numberOfElements: number;
+  first: boolean;
+  empty: boolean;
+}
+
+const ITEMS_PER_PAGE = 10; // Default size for pagination
 const DEBOUNCE_DELAY = 500; // 500ms debounce delay
 
 // Create a separate SearchBar component to maintain its own state
-// This is crucial to prevent keyboard dismissal issues
 const SearchBar = ({ 
   onSearch, 
   initialValue = '',
@@ -171,6 +188,11 @@ const ProgramSelectionScreen = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [hasMorePages, setHasMorePages] = useState<boolean>(true);
+  
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(50)).current;
@@ -179,7 +201,7 @@ const ProgramSelectionScreen = () => {
   const languageId = params.languageId as string;
   const languageName = params.languageName as string;
 
-  // Handle back button presses - FIXED VERSION
+  // Handle back button presses
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
@@ -220,49 +242,65 @@ const ProgramSelectionScreen = () => {
     }
   }, [selectedChannel, languageId, router]);
 
-  // Initialize displayed programs with first batch when filtered programs change
-  useEffect(() => {
-    if (filteredPrograms.length > 0) {
-      setDisplayedPrograms(filteredPrograms.slice(0, ITEMS_PER_BATCH));
-    } else {
-      setDisplayedPrograms([]);
-    }
-  }, [filteredPrograms]);
+  // Removed the useEffect that was setting displayedPrograms based on filteredPrograms
+  // We're now handling it directly in the fetchPrograms and handleSearch functions
 
   // Handle search from the SearchBar component
   const handleSearch = useCallback((query: string) => {
     setIsSearching(true);
     setCurrentSearchQuery(query);
     
+    // Reset pagination state for new searches
+    setCurrentPage(0);
+    setHasMorePages(true);
+    
     // If search is empty, restore original list
     if (query.trim() === '') {
-      setFilteredPrograms(allPrograms);
+      // Reset all programs and fetch first page again
+      setAllPrograms([]);
+      setFilteredPrograms([]);
+      setDisplayedPrograms([]);
+      fetchPrograms(0);
       setIsSearching(false);
       return;
     }
     
-    // Filter the programs
+    // For non-empty search, filter the programs locally
+    // Note: If you want server-side search, you would need to modify the API endpoint
+    // to accept a search parameter
     const filtered = allPrograms.filter(program => 
       program.name.toLowerCase().includes(query.toLowerCase())
     );
     
     setFilteredPrograms(filtered);
+    setDisplayedPrograms(filtered);
     setIsSearching(false);
   }, [allPrograms]);
 
   // Clear search handler
   const handleClearSearch = useCallback(() => {
-    setFilteredPrograms(allPrograms);
-    setIsSearching(false);
     setCurrentSearchQuery('');
-  }, [allPrograms]);
+    setCurrentPage(0);
+    setHasMorePages(true);
+    
+    // Reset programs and fetch first page again
+    setAllPrograms([]);
+    setFilteredPrograms([]);
+    fetchPrograms(0);
+    setIsSearching(false);
+  }, []);
 
-  // Function to fetch programs
-  const fetchPrograms = async () => {
+  // Function to fetch programs with pagination
+  const fetchPrograms = async (page: number = 0, refresh: boolean = false) => {
     try {
-      if (!isRefreshing) {
+      if (!refresh && !isRefreshing && page === 0) {
         setIsLoading(true);
       }
+      
+      if (page > 0) {
+        setIsLoadingMore(true);
+      }
+      
       setApiError(null);
       
       // Make sure we have both channelId and languageId
@@ -273,75 +311,114 @@ const ProgramSelectionScreen = () => {
         });
         setIsLoading(false);
         setIsRefreshing(false);
+        setIsLoadingMore(false);
         return;
       }
       
-      // Call the API with channel and language parameters
-      const response = await api.get(`/api/programs/by-channel-language`, {
+      console.log(`[ProgramSelection] Fetching programs page ${page}`);
+      
+      // Call the API with channel, language, and pagination parameters
+      const response = await api.get<PaginatedResponse>(`/api/programs/by-channel-language`, {
         params: {
           channelId: selectedChannel.channelId,
-          languageId: languageId
+          languageId: languageId,
+          page: page,
+          size: ITEMS_PER_PAGE
         }
       });
       
-      // Set the programs data from API response
-      setAllPrograms(response.data);
-      setFilteredPrograms(response.data);
-      setIsLoading(false);
-      setIsRefreshing(false);
+      const paginatedResponse = response.data;
+      const newPrograms = paginatedResponse.content;
       
-      // Start entrance animations
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        })
-      ]).start();
+      // Update pagination state
+      setTotalPages(paginatedResponse.totalPages);
+      setCurrentPage(paginatedResponse.pageable.pageNumber);
+      setHasMorePages(!paginatedResponse.last);
+      
+      // If this is a refresh or first page, replace all programs
+      if (refresh || page === 0) {
+        setAllPrograms(newPrograms);
+        setFilteredPrograms(newPrograms);
+        setDisplayedPrograms(newPrograms);
+      } else {
+        // For subsequent pages, ONLY append the new programs to existing ones
+        setAllPrograms(prev => [...prev, ...newPrograms]);
+        
+        // If there's a search query active, filter the new programs
+        if (currentSearchQuery.trim() !== '') {
+          const filteredNewPrograms = newPrograms.filter(program => 
+            program.name.toLowerCase().includes(currentSearchQuery.toLowerCase())
+          );
+          setFilteredPrograms(prev => [...prev, ...filteredNewPrograms]);
+          setDisplayedPrograms(prev => [...prev, ...filteredNewPrograms]);
+        } else {
+          // Otherwise just append all new programs
+          setFilteredPrograms(prev => [...prev, ...newPrograms]);
+          setDisplayedPrograms(prev => [...prev, ...newPrograms]);
+        }
+      }
+      
+      // Start entrance animations only for first load
+      if (page === 0) {
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateY, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          })
+        ]).start();
+      }
     } catch (error) {
       console.error('Error fetching programs:', error);
+      setApiError('Failed to load programs. Please try again.');
+      
+      // Don't clear existing programs on error during pagination
+      if (page === 0) {
+        setAllPrograms([]);
+        setFilteredPrograms([]);
+        setDisplayedPrograms([]);
+      }
+    } finally {
       setIsLoading(false);
       setIsRefreshing(false);
-      setApiError('Failed to load programs. Please try again.');
-      setAllPrograms([]);
-      setFilteredPrograms([]);
+      setIsLoadingMore(false);
     }
   };
   
   // Load programs data when component mounts
   useEffect(() => {
     if (selectedChannel?.channelId && languageId) {
-      fetchPrograms();
+      fetchPrograms(0, false);
     }
   }, [selectedChannel, languageId]);
   
   // Handle pull-to-refresh
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchPrograms();
+    // Reset pagination state
+    setCurrentPage(0);
+    setHasMorePages(true);
+    fetchPrograms(0, true);
   };
 
   // Handle loading more items
   const handleLoadMore = () => {
-    if (isLoadingMore || displayedPrograms.length >= filteredPrograms.length) return;
+    // Don't load more if already loading or no more pages
+    if (isLoadingMore || !hasMorePages) {
+      return;
+    }
     
-    setIsLoadingMore(true);
+    // Calculate next page
+    const nextPage = currentPage + 1;
+    console.log(`[ProgramSelection] Loading more items, next page: ${nextPage}`);
     
-    // Load next batch after a short delay
-    setTimeout(() => {
-      const nextItems = filteredPrograms.slice(
-        displayedPrograms.length, 
-        displayedPrograms.length + ITEMS_PER_BATCH
-      );
-      
-      setDisplayedPrograms(prevItems => [...prevItems, ...nextItems]);
-      setIsLoadingMore(false);
-    }, 300);
+    // Fetch next page of results
+    fetchPrograms(nextPage);
   };
 
   // Handle program selection - Redirect to rate-program
@@ -490,7 +567,7 @@ const ProgramSelectionScreen = () => {
                 <Text style={styles.errorText}>{apiError}</Text>
                 <TouchableOpacity 
                   style={styles.retryButton}
-                  onPress={() => fetchPrograms()}
+                  onPress={() => fetchPrograms(0, true)}
                 >
                   <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
