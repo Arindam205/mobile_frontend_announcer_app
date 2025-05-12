@@ -43,34 +43,7 @@ allprojects {
         google()
         maven { url 'https://www.jitpack.io' }
     }
-    
-    // Force all Kotlin dependencies to use the same version
-    configurations.all {
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'org.jetbrains.kotlin') {
-                details.useVersion kotlinVersion
-            }
-        }
-    }
-    
-    // Apply to all projects
-    allprojects  { project ->
-        if (project.hasProperty("android")) {
-            project.android.compileSdkVersion = compileSdkVersion
-            
-            // Force compatibility for Kotlin projects
-            if (project.plugins.hasPlugin('kotlin-android')) {
-                project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                    kotlinOptions {
-                        jvmTarget = "1.8"
-                        freeCompilerArgs += [
-                            "-Xskip-prerelease-check",
-                            "-P",
-                            "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
-                        ]
-                    }
-                }
-            }
-        }
-    }
 }
+
+// Apply the kotlin.gradle file
+apply from: "kotlin.gradle"

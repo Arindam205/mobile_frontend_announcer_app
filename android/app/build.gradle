@@ -46,12 +46,12 @@ configurations.all {
         force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.20'
         force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.7.20'
         force 'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.7.20'
+        
+        // Important: needed for compatibility with splash screen
+        force 'androidx.core:core:1.8.0'
+        force 'androidx.core:core-ktx:1.8.0'
     }
-}
-
-// Exclude problematic dependencies
-configurations.implementation {
-    exclude group: 'androidx.core', module: 'core-splashscreen'
 }
 
 android {
@@ -121,7 +121,6 @@ android {
         resources {
             excludes += ['/META-INF/{AL2.0,LGPL2.1}', '**/kotlin/**']
         }
-        // Exclude problematic paths from packaging
         excludes += ["**/D_/**", "**/*.kotlin_module"]
         pickFirsts += ['**/libc++_shared.so']
     }
@@ -137,8 +136,6 @@ android {
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
-// Accepts values in comma delimited lists, example:
-// android.packagingOptions.pickFirsts=/LICENSE,**/picasa.ini
 ["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
     // Split option: 'foo,bar' -> ['foo', 'bar']
     def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
@@ -160,9 +157,11 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     
-    // Add compatible splash screen version explicitly
-    implementation 'androidx.core:core-splashscreen:1.0.1'
-
+    // Add the required splash screen dependencies
+    implementation "androidx.core:core-splashscreen:1.0.1"  // Important splash screen dependency
+    implementation "androidx.core:core:1.8.0"
+    implementation "androidx.core:core-ktx:1.8.0"
+    
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";

@@ -1,9 +1,25 @@
-allprojects {
-    // Force a specific version of Kotlin for all dependencies
-    configurations.all {
-        resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-            if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name.startsWith('kotlin-')) {
-                details.useVersion "1.7.20"
+// Simple Kotlin version override for all projects
+subprojects { subproject ->
+    if (subproject.name.startsWith('expo-') || subproject.name == 'expo') {
+        subproject.buildscript {
+            configurations.classpath {
+                resolutionStrategy {
+                    eachDependency { details ->
+                        if (details.requested.group == 'org.jetbrains.kotlin') {
+                            details.useVersion '1.7.20'
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    subproject.configurations.all {
+        resolutionStrategy {
+            eachDependency { details ->
+                if (details.requested.group == 'org.jetbrains.kotlin') {
+                    details.useVersion '1.7.20'
+                }
             }
         }
     }
