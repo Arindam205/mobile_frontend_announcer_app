@@ -8,5 +8,3 @@ allprojects {
         }
     }
 }
-
-apply from: "kotlin.gradle"
