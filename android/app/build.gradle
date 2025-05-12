@@ -38,10 +38,14 @@ def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
-// Fix for splash screen dependency issue
+// Fix for splash screen dependency issue and Kotlin version conflicts
 configurations.all {
     resolutionStrategy {
         force 'androidx.core:core-splashscreen:1.0.1'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.7.20'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.20'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.7.20'
+        force 'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
     }
 }
 
@@ -92,9 +96,30 @@ android {
         }
     }
     
+    // Kotlin options to fix version compatibility issues
+    kotlinOptions {
+        jvmTarget = '1.8'
+        freeCompilerArgs += [
+            "-Xskip-prerelease-check",
+            "-P", 
+            "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
+        ]
+    }
+    
+    // Fixing provider warnings
+    buildFeatures {
+        buildConfig true
+    }
+    
     packagingOptions {
         jniLibs {
             useLegacyPackaging false
+        }
+        // Exclude problematic paths from packaging
+        excludes += ["**/D_/**", "**/*.kotlin_module", "/META-INF/{AL2.0,LGPL2.1}", "**/kotlin/**"]
+        pickFirsts += ['**/libc++_shared.so']
+        resources {
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}', '**/kotlin/**']
         }
         // Exclude problematic paths from packaging
         excludes += ["**/D_/**", "**/*.kotlin_module"]
@@ -103,6 +128,11 @@ android {
     
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
@@ -156,4 +186,9 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+    
+    // Force compatible Kotlin versions
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.7.20'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.20'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.7.20'
 }

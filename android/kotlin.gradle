@@ -1,0 +1,12 @@
+allprojects {
+    // Force a specific version of Kotlin for all dependencies
+    configurations.all {
+        resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+            if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name.startsWith('kotlin-')) {
+                details.useVersion "1.7.20"
+            }
+        }
+    }
+}
+
+apply from: "kotlin.gradle"
