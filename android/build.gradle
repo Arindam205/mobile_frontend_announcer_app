@@ -40,7 +40,7 @@ allprojects {
     }
     
     // Apply to all projects
-    afterEvaluate { project ->
+    allprojects  { project ->
         if (project.hasProperty("android")) {
             project.android.compileSdkVersion = compileSdkVersion
             
