@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "prebuild": "expo prebuild",
-    "build:android": "npm run prebuild && cd android && ./gradlew assembleRelease",
+    "build:android": "npm run prebuild && cd android && gradlew.bat assembleRelease",
     "build:ios": "npm run prebuild && cd ios && xcodebuild -workspace announce_rj_app.xcworkspace -scheme announce_rj_app -configuration Release"
   },
   "dependencies": {
