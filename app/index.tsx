@@ -1,83 +1,73 @@
-// app/index.tsx
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
-// Add startup log
-console.log('[STARTUP] Index screen initializing');
-
-export default function Index() {
-  console.log('[STARTUP] Index component function executing');
+function MainIndex() {
+  const [isReady, setIsReady] = useState(false);
   const { isAuthenticated, isLoading } = useAuth();
-  const [error, setError] = useState(null);
   
-  console.log('[STARTUP] Auth state:', { isAuthenticated, isLoading });
-  
+  // Safely initialize app with timeout
   useEffect(() => {
-    console.log('[STARTUP] Index component mounted');
+    console.log("[Index] Starting app initialization");
     
-    // Simple error catcher
-  try {
-    console.log('[STARTUP] Testing navigation path');
-    const destination = isAuthenticated ? '/(app)/home' : '/(auth)/login';
-    console.log('[STARTUP] Will navigate to:', destination);
-  } catch (error: any) { // Explicitly type as any
-    console.error('[STARTUP] Navigation preparation error:', error);
-    setError(error?.message || 'An unknown error occurred');
-  }
+    // Set a timeout to ensure app proceeds even if auth is slow
+    const timer = setTimeout(() => {
+      console.log("[Index] Initialization timeout reached");
+      setIsReady(true);
+    }, 3000); // 3 seconds max wait
     
-    return () => {
-      console.log('[STARTUP] Index component unmounting');
-    };
-  }, [isAuthenticated]);
+    // Check if auth is already ready
+    if (!isLoading) {
+      console.log("[Index] Auth already initialized");
+      setIsReady(true);
+      clearTimeout(timer);
+    }
+    
+    return () => clearTimeout(timer);
+  }, [isLoading]);
   
-  // Show any errors that occur during initialization
-  if (error) {
+  // Show loading until ready
+  if (!isReady) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorTitle}>Startup Error</Text>
-        <Text style={styles.errorMessage}>{error}</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.loadingText}>Starting app...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
   
-  // Show loading state
-  if (isLoading) {
-    console.log('[STARTUP] Showing loading state');
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
+  // Show auth state
+  console.log("[Index] Auth state:", { isAuthenticated, isLoading });
+  
+  // Navigate based on auth state
+  return <Redirect href={isAuthenticated ? "/(app)/home" : "/(auth)/login"} />;
+}
 
-  // Route to the appropriate screen
-  console.log('[STARTUP] Redirecting to:', isAuthenticated ? '/(app)/home' : '/(auth)/login');
-  return <Redirect href={isAuthenticated ? '/(app)/home' : '/(auth)/login'} />;
+// Wrap with error boundary
+export default function IndexWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <MainIndex />
+    </ErrorBoundary>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  content: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#f5f5f5',
   },
   loadingText: {
     fontSize: 18,
     color: '#333',
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'red',
-    marginBottom: 10,
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
   },
 });
