@@ -2,7 +2,7 @@
 const config = {
   expo: {
     name: "RAISE",
-    slug: "announce_rj_app",
+    slug: "raise",
     version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
