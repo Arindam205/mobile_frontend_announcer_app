@@ -20,11 +20,18 @@ const config = {
       },
       package: "com.yourcompany.announceapp",
       versionCode: 1,
-      // Network security config for local IP
+      // Explicitly add INTERNET permission
+      permissions: [
+        "INTERNET"
+      ],
+      // Enhanced network security config
       config: {
         networkSecurityConfig: {
           domainCleartext: [
-            "192.168.0.101" // Your local IP address
+            "192.168.0.101",
+            "localhost",
+            "127.0.0.1",
+            "10.0.2.2" // Android emulator localhost
           ]
         }
       }
@@ -51,9 +58,11 @@ const config = {
     experiments: {
       typedRoutes: true
     },
+    // Force development mode for better error reporting
+    developmentClient: true,
     extra: {
       eas: {
-        projectId: "ffb88d52-5601-4488-9523-56b3ffcc99ed" // This will be filled automatically by EAS
+        projectId: "ffb88d52-5601-4488-9523-56b3ffcc99ed"
       }
     }
   }
