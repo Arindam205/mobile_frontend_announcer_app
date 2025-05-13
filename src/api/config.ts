@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Use the computer's IP address when testing with a physical device
-export const API_URL = "http://192.168.0.102:8080";
+export const API_URL = "http://192.168.0.101:8080";
 
 export const ENDPOINTS = {
   VERIFY_PHONE: '/api/auth/verify-phone',
