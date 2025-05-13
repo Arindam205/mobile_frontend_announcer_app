@@ -9,6 +9,7 @@ const config = {
     scheme: "myapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    owner: "arindam1996",
     ios: {
       supportsTablet: true
     },
@@ -52,7 +53,7 @@ const config = {
     },
     extra: {
       eas: {
-        projectId: "your-project-id" // This will be filled automatically by EAS
+        projectId: "ffb88d52-5601-4488-9523-56b3ffcc99ed" // This will be filled automatically by EAS
       }
     }
   }
