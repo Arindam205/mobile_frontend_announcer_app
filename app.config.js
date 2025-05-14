@@ -7,7 +7,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",
-    owner: "subhra95",
+    owner: "subhra96",
     
     splash: {
       image: "./assets/images/akashvanilogo.png",
@@ -53,7 +53,7 @@ module.exports = {
     
     extra: {
       eas: {
-        projectId: "e02352ba-4804-4217-8881-3e68a4a18fb2"
+        projectId: "d3bc298f-9fbb-4f75-80e9-fff67d6b30b2"
       },
       apiUrl: process.env.API_URL || "http://192.168.0.101:8080",
     },
