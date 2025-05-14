@@ -8,6 +8,7 @@ module.exports = {
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",
     owner: "subhra96",
+    scheme: "raise", // Added scheme property
     
     splash: {
       image: "./assets/images/akashvanilogo.png",
