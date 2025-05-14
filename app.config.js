@@ -7,7 +7,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",
-    owner: "arindam1996",
+    owner: "subhra1996",
     
     splash: {
       image: "./assets/images/akashvanilogo.png",
