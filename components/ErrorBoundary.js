@@ -1,16 +1,25 @@
+// components/AppErrorBoundary.js
 import React from 'react';
-import { View, Text, StyleSheet, Button, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
-class ErrorBoundary extends React.Component {
-  state = { hasError: false, error: null, errorInfo: null };
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("App crashed:", error);
-    this.setState({ errorInfo });
+    // Log the error to console
+    console.error('App Error:', error);
+    console.error('Error Stack:', errorInfo.componentStack);
+    
+    this.setState({
+      errorInfo: errorInfo
+    });
   }
 
   render() {
@@ -18,17 +27,14 @@ class ErrorBoundary extends React.Component {
       return (
         <View style={styles.container}>
           <Text style={styles.title}>Something went wrong</Text>
-          <ScrollView style={styles.errorScroll}>
-            <Text style={styles.errorText}>{this.state.error?.toString()}</Text>
-            <Text style={styles.stackText}>{this.state.errorInfo?.componentStack}</Text>
-          </ScrollView>
-          <Button 
-            title="Try Again" 
-            onPress={() => this.setState({ hasError: false })} 
-          />
+          <Text style={styles.error}>{this.state.error?.toString()}</Text>
+          <Text style={styles.info}>
+            Please restart the app or contact support if this issue persists.
+          </Text>
         </View>
       );
     }
+
     return this.props.children;
   }
 }
@@ -39,29 +45,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f8f8',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'red',
-    marginBottom: 20,
-  },
-  errorScroll: {
-    maxHeight: 300,
-    width: '100%',
-    marginBottom: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#333',
     marginBottom: 10,
+    color: '#e74c3c',
   },
-  stackText: {
+  error: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#333',
+  },
+  info: {
     fontSize: 14,
+    textAlign: 'center',
     color: '#666',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
 
-export default ErrorBoundary;
+export default AppErrorBoundary;

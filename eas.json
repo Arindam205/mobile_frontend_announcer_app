@@ -5,18 +5,46 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "API_URL": "http://192.168.0.101:8080"
+      }
+    },
+    "debug": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "API_URL": "http://192.168.0.101:8080"
+      },
+      "developmentClient": false
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "API_URL": "http://192.168.0.101:8080"
       }
     },
     "production": {
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "API_URL": "http://192.168.0.101:8080"
       }
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
