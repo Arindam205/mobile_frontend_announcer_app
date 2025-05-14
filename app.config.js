@@ -49,12 +49,7 @@ module.exports = {
     
     plugins: [
       "expo-router",
-      "expo-secure-store",
-      "react-native-svg",
-      "expo-linear-gradient",
-      "react-native-reanimated",
-      "react-native-gesture-handler",
-       "react-native-safe-area-context",
+      "expo-secure-store"
     ],
     
     extra: {
