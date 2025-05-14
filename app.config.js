@@ -53,7 +53,7 @@ module.exports = {
     
     extra: {
       eas: {
-        projectId: "ffb88d52-5601-4488-9523-56b3ffcc99ed"
+        projectId: "6edc8404-dd27-4a4e-b84f-3d5d26fbcf56"
       },
       apiUrl: process.env.API_URL || "http://192.168.0.101:8080",
     },
