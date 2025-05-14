@@ -49,7 +49,8 @@ module.exports = {
     
     plugins: [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "react-native-svg"
     ],
     
     extra: {
