@@ -7,7 +7,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",
-    owner: "subhra96",
+    owner: "subhra1997",
     scheme: "raise", // Added scheme property
     
     splash: {
@@ -54,7 +54,7 @@ module.exports = {
     
     extra: {
       eas: {
-        projectId: "d3bc298f-9fbb-4f75-80e9-fff67d6b30b2"
+        projectId: "3690391d-4cb2-4f13-8206-2cb13e19f1f5"
       },
       apiUrl: process.env.API_URL || "http://192.168.0.101:8080",
     },
