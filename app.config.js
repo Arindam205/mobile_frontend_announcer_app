@@ -1,62 +1,65 @@
 // app.config.js
-const config = {
+module.exports = {
   expo: {
     name: "RAISE",
     slug: "raise",
     version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "myapp",
     userInterfaceStyle: "automatic",
-    newArchEnabled: true,
-    owner: "arindam1996",
-    ios: {
-      supportsTablet: true
+    owner: "subhra95",
+    
+    splash: {
+      image: "./assets/images/akashvanilogo.png",
+      resizeMode: "contain",
+      backgroundColor: "#ffffff"
     },
+    
+    updates: {
+      fallbackToCacheTimeout: 0,
+      checkAutomatically: "ON_LOAD"
+    },
+    
+    assetBundlePatterns: [
+      "**/*"
+    ],
+    
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.yourcompany.announceapp"
+    },
+    
     android: {
-      adaptiveIcon: {
-        foregroundImage: "./assets/images/adaptive-icon.png",
-        backgroundColor: "#ffffff"
-      },
       package: "com.yourcompany.announceapp",
       versionCode: 1,
-      // Network security config for local IP
-      config: {
-        networkSecurityConfig: {
-          domainCleartext: [
-            "192.168.0.101" // Your local IP address
-          ]
-        }
+      permissions: [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      adaptiveIcon: {
+        foregroundImage: "./assets/images/adaptive-icon.png",
+        backgroundColor: "#FFFFFF"
       }
     },
+    
     web: {
-      bundler: "metro",
-      output: "static",
       favicon: "./assets/images/favicon.png"
     },
+    
     plugins: [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
-      "expo-font",
       "expo-secure-store"
     ],
-    experiments: {
-      typedRoutes: true
-    },
+    
     extra: {
       eas: {
-        projectId: "ffb88d52-5601-4488-9523-56b3ffcc99ed" // This will be filled automatically by EAS
-      }
+        projectId: "e02352ba-4804-4217-8881-3e68a4a18fb2"
+      },
+      apiUrl: process.env.API_URL || "http://192.168.0.101:8080",
+    },
+    
+    experiments: {
+      typedRoutes: true
     }
   }
 };
-
-module.exports = config;
