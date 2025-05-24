@@ -1,7 +1,8 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
 
-// Use the computer's IP address when testing with a physical device
-export const API_URL = "http://192.168.0.101:8080";
+// Get API URL from environment variables or use production default
+export const API_URL = Constants.expoConfig?.extra?.apiUrl || "http://117.247.79.184:8081";
 
 export const ENDPOINTS = {
   VERIFY_PHONE: '/api/auth/verify-phone',
@@ -14,8 +15,61 @@ export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Cache-Control': 'no-cache',
+  },
+  timeout: 15000, // 15 seconds timeout for production
+  maxRedirects: 5,
+  validateStatus: function (status) {
+    return status >= 200 && status < 300;
   },
 });
+
+// Add request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    if (__DEV__) {
+      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+      console.log('[API] Base URL:', config.baseURL);
+    }
+    return config;
+  },
+  (error) => {
+    if (__DEV__) {
+      console.error('[API] Request Error:', error);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    if (__DEV__) {
+      console.log(`[API] Response: ${response.status} from ${response.config.url}`);
+    }
+    return response;
+  },
+  (error) => {
+    console.error('[API] Response Error:', {
+      message: error.message,
+      status: error.response?.status,
+      url: error.config?.url,
+      baseURL: error.config?.baseURL
+    });
+    
+    // Handle specific error types for production
+    if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
+      console.error('[API] Network Error - Check server connectivity');
+    }
+    
+    if (error.response?.status === 401) {
+      console.error('[API] Authentication Error - Token may be expired');
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 export const setAuthToken = (token: string | null) => {
   if (token) {

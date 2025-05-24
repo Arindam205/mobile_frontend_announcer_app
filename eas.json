@@ -21,7 +21,7 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "env": {
-        "API_URL": "http://192.168.0.101:8080"
+        "API_URL": "http://117.247.79.184:8081"
       },
       "developmentClient": false
     },
@@ -31,7 +31,7 @@
         "buildType": "apk"
       },
       "env": {
-        "API_URL": "http://192.168.0.101:8080"
+        "API_URL": "http://117.247.79.184:8081"
       }
     },
     "production": {
@@ -40,7 +40,16 @@
         "buildType": "apk"
       },
       "env": {
-        "API_URL": "http://192.168.0.101:8080"
+        "API_URL": "http://117.247.79.184:8081"
+      }
+    },
+    "production-aab": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "aab"
+      },
+      "env": {
+        "API_URL": "http://117.247.79.184:8081"
       }
     }
   },

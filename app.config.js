@@ -2,13 +2,14 @@
 module.exports = {
   expo: {
     name: "RAISE",
-    slug: "raise",
+    slug: "raise-app",
     version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",
-    owner: "subhra1997",
-    scheme: "raise", // Added scheme property
+    // IMPORTANT: Replace "YOUR_EXPO_USERNAME" with your actual username from `eas whoami`
+    owner: "amigos96", // Replace this with your actual Expo username
+    scheme: "raise",
     
     splash: {
       image: "./assets/images/akashvanilogo.png",
@@ -27,20 +28,23 @@ module.exports = {
     
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.yourcompany.announceapp"
+      bundleIdentifier: "com.subhra.raiseapp"
     },
     
     android: {
-      package: "com.yourcompany.announceapp",
+      package: "com.subhra.raiseapp",
       versionCode: 1,
       permissions: [
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK"
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#FFFFFF"
-      }
+      },
+      // Allow HTTP traffic for your production server
+      usesCleartextTraffic: true
     },
     
     web: {
@@ -49,14 +53,27 @@ module.exports = {
     
     plugins: [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          android: {
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            // Reference to network security config in root directory
+            networkSecurityConfig: "./network_security_config.xml"
+          }
+        }
+      ]
     ],
     
     extra: {
       eas: {
-        projectId: "3690391d-4cb2-4f13-8206-2cb13e19f1f5"
+        // IMPORTANT: Replace "YOUR_PROJECT_ID" with your actual project ID from `eas project:init`
+        projectId: "0d5e548f-17dc-42e1-bbf5-533f34fb9b3d" // Replace this with your actual project ID
       },
-      apiUrl: process.env.API_URL || "http://192.168.0.101:8080",
+      // This is what your app will use as API URL
+      apiUrl: process.env.API_URL || "http://117.247.79.184:8081",
     },
     
     experiments: {
