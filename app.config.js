@@ -2,7 +2,7 @@
 module.exports = {
   expo: {
     name: "RAISE",
-    slug: "raise-app",
+    slug: "raise",
     version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
