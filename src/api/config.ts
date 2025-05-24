@@ -2,7 +2,7 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 
 // Get API URL from environment variables or use production default
-export const API_URL = Constants.expoConfig?.extra?.apiUrl || "http://117.247.79.184:8081";
+export const API_URL = "http://117.247.79.184:8081";
 
 export const ENDPOINTS = {
   VERIFY_PHONE: '/api/auth/verify-phone',
