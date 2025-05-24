@@ -506,113 +506,103 @@ export default function RateProgramScreen() {
   };
 
   // Submit the ratings
-  const handleSubmit = async () => {
-    // Validate date selection
-    if (!selectedDate) {
-      setDateError('Please select a date to rate this program');
-      
-      // Scroll to top to make sure the date field is visible
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: true });
+  // Replace the handleSubmit function in app/(app)/rate-program.tsx
+
+const handleSubmit = async () => {
+  // Validate date selection
+  if (!selectedDate) {
+    setDateError('Please select a date to rate this program');
+    
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: true });
+    }
+    
+    Alert.alert(
+      'Date Required',
+      'Please select a date when you listened to this program',
+      [{ text: 'OK' }]
+    );
+    return;
+  }
+  
+  // Validate all ratings are provided
+  const missingRatings = [];
+  
+  for (const criteria of RATING_CRITERIA) {
+    if (ratings[criteria.id as keyof RatingsState] === null) {
+      missingRatings.push(criteria.title);
+    }
+  }
+  
+  if (missingRatings.length > 0) {
+    setValidationErrors(missingRatings);
+    Alert.alert(
+      'Missing Ratings',
+      `Please rate the following: ${missingRatings.join(', ')}`,
+      [{ text: 'OK' }]
+    );
+    return;
+  }
+  
+  try {
+    setIsSubmitting(true);
+    
+    const formattedDate = selectedDate.toISOString().split('T')[0];
+    const timestamp = new Date().toISOString();
+    const programIdNumber = Number(programId);
+    
+    const requestBody = {
+      stationId: stationId,
+      channelId: selectedChannel?.channelId,
+      languageId: Number(languageId),
+      timestamp: timestamp,
+      programDate: formattedDate,
+      programId: programIdNumber,
+      rating: {
+        content: ratings.content,
+        presentation: ratings.presentation,
+        overallProduction: ratings.production,
+        impact: ratings.impact,
       }
-      
-      Alert.alert(
-        'Date Required',
-        'Please select a date when you listened to this program',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+    };
     
-    // Validate all ratings are provided
-    const missingRatings = [];
+    console.log('[RateProgram] Submitting program rating:', requestBody);
     
-    for (const criteria of RATING_CRITERIA) {
-      if (ratings[criteria.id as keyof RatingsState] === null) {
-        missingRatings.push(criteria.title);
-      }
-    }
+    const response = await api.post<ProgramRatingResponse>('/api/program-ratings/submit', requestBody);
     
-    if (missingRatings.length > 0) {
-      setValidationErrors(missingRatings);
-      Alert.alert(
-        'Missing Ratings',
-        `Please rate the following: ${missingRatings.join(', ')}`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+    console.log('[RateProgram] Program rating response status:', response.status);
+    console.log('[RateProgram] Program rating response data:', response.data);
     
-    // All validations passed, begin submission
-    try {
-      setIsSubmitting(true);
-      
-      // Format the selected date for API (YYYY-MM-DD)
-      const formattedDate = selectedDate.toISOString().split('T')[0];
-      
-      // Create current timestamp in ISO format for the API
-      const timestamp = new Date().toISOString();
-      
-      // Get program ID from params
-      const programIdNumber = Number(programId);
-      
-      // Prepare API request body
-      const requestBody = {
-        stationId: stationId,
-        channelId: selectedChannel?.channelId,
-        languageId: Number(languageId),
-        timestamp: timestamp,
-        programDate: formattedDate,
-        programId: programIdNumber,
-        rating: {
-          content: ratings.content,
-          presentation: ratings.presentation,
-          overallProduction: ratings.production, // Map 'production' to 'overallProduction'
-          impact: ratings.impact,
-        }
-      };
-      
-      console.log('Submitting program rating:', requestBody);
-      
-      // Call the API
-      const response = await api.post<ProgramRatingResponse>('/api/program-ratings/submit', requestBody);
-      
-      console.log('Program rating submission response:', response.data);
-      
-      setIsSubmitting(false);
-      
-      // Extract important information from the response
+    setIsSubmitting(false);
+    
+    if (response.status >= 200 && response.status < 300) {
+      // Successful submission
       const { success, message, ratingDetails, averageRatingDetails } = response.data;
       
       setResponseMessage(message);
       
       if (success) {
-        // Rating was submitted successfully
         setIsSuccess(true);
         setShowSuccess(true);
         
-        // Display average ratings if provided (optional)
         if (averageRatingDetails) {
-          console.log('Average program ratings:', averageRatingDetails);
+          console.log('[RateProgram] Average program ratings:', averageRatingDetails);
         }
         
-        // Navigate to home after a delay
         const timer = setTimeout(() => {
-          setShowSuccess(false); // Hide overlay before navigation
+          setShowSuccess(false);
           router.replace('/(app)/home');
         }, 2500);
         
-        // Store timer reference for cleanup
         timerRef.current = timer;
       } else {
-        // Rating was not successful
         Alert.alert(
           'Rating Submission',
           message || 'Failed to submit rating',
           [{ 
             text: 'OK', 
             onPress: () => {
-              setShowSuccess(false); // Ensure overlay is hidden
+              setShowSuccess(false);
               router.push({
                 pathname: '/(app)/program-selection',
                 params: {
@@ -624,17 +614,31 @@ export default function RateProgramScreen() {
           }]
         );
       }
-    } catch (error: any) {
-      console.error('Error submitting program rating:', error);
-      setIsSubmitting(false);
-      
+    } else if (response.status >= 400 && response.status < 500) {
+      // Client error - handle gracefully
+      const errorMessage = response.data?.message || 'Program rating submission failed';
+      console.log(`[RateProgram] API returned ${response.status}: ${errorMessage}`);
+      Alert.alert('Rating Submission', errorMessage, [{ text: 'OK' }]);
+    } else {
+      // Unexpected status
       Alert.alert(
-        'Submission Error',
-        error.response?.data?.message || 'Failed to submit rating. Please try again later.',
+        'Rating Submission',
+        `Unexpected server response: ${response.status}`,
         [{ text: 'OK' }]
       );
     }
-  };
+  } catch (error: any) {
+    // Only server errors (500+) and network errors reach here
+    console.error('[RateProgram] Server/Network error submitting program rating:', error);
+    setIsSubmitting(false);
+    
+    Alert.alert(
+      'Submission Error',
+      'Failed to submit rating. Please try again later.',
+      [{ text: 'OK' }]
+    );
+  }
+};
 
   // Calculate dynamic button color based on state
   const getButtonStyle = () => {

@@ -407,17 +407,22 @@ function ProfileScreen() {
   );
   
   // Fetch badge info from API
-  const fetchBadgeInfo = async () => {
-    setIsLoading(true);
-    setLoadingError(null);
+  // Replace the fetchBadgeInfo function in app/(app)/profile.tsx
+
+const fetchBadgeInfo = async () => {
+  setIsLoading(true);
+  setLoadingError(null);
+  
+  try {
+    const response = await api.get<BadgeInfo>('/api/badge/info');
     
-    try {
-      const response = await api.get<BadgeInfo>('/api/badge/info');
-      
-      // Update badge info state
+    console.log('[Profile] Badge info response status:', response.status);
+    console.log('[Profile] Badge info response data:', response.data);
+    
+    if (response.status >= 200 && response.status < 300) {
+      // Successful response
       setBadgeInfo(response.data);
       
-      // Update profile ratings data
       setUserProfile(prev => ({
         ...prev,
         totalRatings: response.data.totalRatings,
@@ -425,17 +430,24 @@ function ProfileScreen() {
         programRatings: response.data.programRatings
       }));
       
-      console.log('Badge info fetched successfully:', response.data);
-    } catch (error) {
-      console.error('Error fetching badge info:', error);
-      setLoadingError('Failed to load badge information');
-      
-      // If we failed to get badge info, still try to show the profile
-      // with whatever data we have
-    } finally {
-      setIsLoading(false);
+      console.log('[Profile] Badge info fetched successfully:', response.data);
+    } else if (response.status >= 400 && response.status < 500) {
+      // Client error - handle gracefully
+      const errorMessage = (response.data as any)?.message || 'Failed to load badge information';
+      console.log(`[Profile] API returned ${response.status}: ${errorMessage}`);
+      setLoadingError(errorMessage);
+    } else {
+      // Unexpected status
+      setLoadingError(`Unexpected server response: ${response.status}`);
     }
-  };
+  } catch (error: any) {
+    // Only server errors (500+) and network errors reach here
+    console.error('[Profile] Server/Network error fetching badge info:', error);
+    setLoadingError('Failed to load badge information');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Handle logout
   const handleLogout = async () => {

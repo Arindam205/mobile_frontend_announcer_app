@@ -18,53 +18,54 @@ export const api = axios.create({
     'Accept': 'application/json',
     'Cache-Control': 'no-cache',
   },
-  timeout: 15000, // 15 seconds timeout for production
+  timeout: 30000,
   maxRedirects: 5,
+  // CRITICAL FIX: Only treat server errors (500+) as axios errors
+  // All client errors (400-499) are valid responses that should be handled by the app
   validateStatus: function (status) {
-    return status >= 200 && status < 300;
+    return status < 500;
   },
 });
 
 // Add request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
-    if (__DEV__) {
-      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
-      console.log('[API] Base URL:', config.baseURL);
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    if (config.data) {
+      console.log('[API] Request Data:', JSON.stringify(config.data, null, 2));
     }
     return config;
   },
   (error) => {
-    if (__DEV__) {
-      console.error('[API] Request Error:', error);
-    }
+    console.error('[API] Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Add response interceptor for error handling
+// Add response interceptor - handle ALL responses consistently
 api.interceptors.response.use(
   (response) => {
-    if (__DEV__) {
-      console.log(`[API] Response: ${response.status} from ${response.config.url}`);
-    }
+    console.log(`[API] Response: ${response.status} from ${response.config.url}`);
+    console.log('[API] Response Data:', JSON.stringify(response.data, null, 2));
+    
+    // IMPORTANT: Never throw errors for 2xx, 3xx, or 4xx responses
+    // Let the calling code handle all responses based on status and data
     return response;
   },
   (error) => {
-    console.error('[API] Response Error:', {
+    // Only server errors (500+) and network errors reach here
+    console.error('[API] Server/Network Error:', {
       message: error.message,
       status: error.response?.status,
+      statusText: error.response?.statusText,
       url: error.config?.url,
-      baseURL: error.config?.baseURL
+      data: error.response?.data
     });
     
-    // Handle specific error types for production
-    if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
-      console.error('[API] Network Error - Check server connectivity');
-    }
-    
-    if (error.response?.status === 401) {
-      console.error('[API] Authentication Error - Token may be expired');
+    if (error.response?.status >= 500) {
+      error.message = 'Server error. Please try again later.';
+    } else if (error.request) {
+      error.message = 'Network error. Please check your connection.';
     }
     
     return Promise.reject(error);
@@ -74,7 +75,9 @@ api.interceptors.response.use(
 export const setAuthToken = (token: string | null) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('[API] Auth token set for requests');
   } else {
     delete api.defaults.headers.common['Authorization'];
+    console.log('[API] Auth token removed from requests');
   }
 };

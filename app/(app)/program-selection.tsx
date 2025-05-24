@@ -291,42 +291,47 @@ const ProgramSelectionScreen = () => {
   }, []);
 
   // Function to fetch programs with pagination
-  const fetchPrograms = async (page: number = 0, refresh: boolean = false) => {
-    try {
-      if (!refresh && !isRefreshing && page === 0) {
-        setIsLoading(true);
-      }
-      
-      if (page > 0) {
-        setIsLoadingMore(true);
-      }
-      
-      setApiError(null);
-      
-      // Make sure we have both channelId and languageId
-      if (!selectedChannel?.channelId || !languageId) {
-        console.error('Missing required parameters for API call', { 
-          channelId: selectedChannel?.channelId, 
-          languageId 
-        });
-        setIsLoading(false);
-        setIsRefreshing(false);
-        setIsLoadingMore(false);
-        return;
-      }
-      
-      console.log(`[ProgramSelection] Fetching programs page ${page}`);
-      
-      // Call the API with channel, language, and pagination parameters
-      const response = await api.get<PaginatedResponse>(`/api/programs/by-channel-language`, {
-        params: {
-          channelId: selectedChannel.channelId,
-          languageId: languageId,
-          page: page,
-          size: ITEMS_PER_PAGE
-        }
+  // Replace the fetchPrograms function in app/(app)/program-selection.tsx
+
+const fetchPrograms = async (page: number = 0, refresh: boolean = false) => {
+  try {
+    if (!refresh && !isRefreshing && page === 0) {
+      setIsLoading(true);
+    }
+    
+    if (page > 0) {
+      setIsLoadingMore(true);
+    }
+    
+    setApiError(null);
+    
+    if (!selectedChannel?.channelId || !languageId) {
+      console.error('Missing required parameters for API call', { 
+        channelId: selectedChannel?.channelId, 
+        languageId 
       });
-      
+      setIsLoading(false);
+      setIsRefreshing(false);
+      setIsLoadingMore(false);
+      return;
+    }
+    
+    console.log(`[ProgramSelection] Fetching programs page ${page}`);
+    
+    const response = await api.get<PaginatedResponse>(`/api/programs/by-channel-language`, {
+      params: {
+        channelId: selectedChannel.channelId,
+        languageId: languageId,
+        page: page,
+        size: ITEMS_PER_PAGE
+      }
+    });
+    
+    console.log('[ProgramSelection] Programs response status:', response.status);
+    console.log('[ProgramSelection] Programs response data:', response.data);
+    
+    if (response.status >= 200 && response.status < 300) {
+      // Successful response
       const paginatedResponse = response.data;
       const newPrograms = paginatedResponse.content;
       
@@ -335,16 +340,14 @@ const ProgramSelectionScreen = () => {
       setCurrentPage(paginatedResponse.pageable.pageNumber);
       setHasMorePages(!paginatedResponse.last);
       
-      // If this is a refresh or first page, replace all programs
+      // Handle program data
       if (refresh || page === 0) {
         setAllPrograms(newPrograms);
         setFilteredPrograms(newPrograms);
         setDisplayedPrograms(newPrograms);
       } else {
-        // For subsequent pages, ONLY append the new programs to existing ones
         setAllPrograms(prev => [...prev, ...newPrograms]);
         
-        // If there's a search query active, filter the new programs
         if (currentSearchQuery.trim() !== '') {
           const filteredNewPrograms = newPrograms.filter(program => 
             program.name.toLowerCase().includes(currentSearchQuery.toLowerCase())
@@ -352,7 +355,6 @@ const ProgramSelectionScreen = () => {
           setFilteredPrograms(prev => [...prev, ...filteredNewPrograms]);
           setDisplayedPrograms(prev => [...prev, ...filteredNewPrograms]);
         } else {
-          // Otherwise just append all new programs
           setFilteredPrograms(prev => [...prev, ...newPrograms]);
           setDisplayedPrograms(prev => [...prev, ...newPrograms]);
         }
@@ -373,22 +375,42 @@ const ProgramSelectionScreen = () => {
           })
         ]).start();
       }
-    } catch (error) {
-      console.error('Error fetching programs:', error);
-      setApiError('Failed to load programs. Please try again.');
+    } else if (response.status >= 400 && response.status < 500) {
+      // Client error - handle gracefully
+      const errorMessage = (response.data as any)?.message || 'Failed to load programs';
+      console.log(`[ProgramSelection] API returned ${response.status}: ${errorMessage}`);
+      setApiError(errorMessage);
       
-      // Don't clear existing programs on error during pagination
       if (page === 0) {
         setAllPrograms([]);
         setFilteredPrograms([]);
         setDisplayedPrograms([]);
       }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-      setIsLoadingMore(false);
+    } else {
+      // Unexpected status
+      setApiError(`Unexpected server response: ${response.status}`);
+      if (page === 0) {
+        setAllPrograms([]);
+        setFilteredPrograms([]);
+        setDisplayedPrograms([]);
+      }
     }
-  };
+  } catch (error: any) {
+    // Only server errors (500+) and network errors reach here
+    console.error('[ProgramSelection] Server/Network error fetching programs:', error);
+    setApiError('Failed to load programs. Please try again.');
+    
+    if (page === 0) {
+      setAllPrograms([]);
+      setFilteredPrograms([]);
+      setDisplayedPrograms([]);
+    }
+  } finally {
+    setIsLoading(false);
+    setIsRefreshing(false);
+    setIsLoadingMore(false);
+  }
+};
   
   // Load programs data when component mounts
   useEffect(() => {

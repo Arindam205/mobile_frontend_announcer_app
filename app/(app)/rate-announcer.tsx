@@ -307,103 +307,112 @@ export default function RateAnnouncerScreen() {
   };
 
   // Submit the ratings
-  const handleSubmit = async () => {
-    // Validate all ratings are provided
-    const missingRatings = [];
+  // Replace the handleSubmit function in app/(app)/rate-announcer.tsx
+
+const handleSubmit = async () => {
+  // Validate all ratings are provided
+  const missingRatings = [];
+  
+  for (const criteria of RATING_CRITERIA) {
+    if (ratings[criteria.id as keyof RatingsState] === null) {
+      missingRatings.push(criteria.title);
+    }
+  }
+  
+  if (missingRatings.length > 0) {
+    setValidationErrors(missingRatings);
+    Alert.alert(
+      'Missing Ratings',
+      `Please rate the following: ${missingRatings.join(', ')}`,
+      [{ text: 'OK' }]
+    );
+    return;
+  }
+  
+  try {
+    setIsSubmitting(true);
     
-    for (const criteria of RATING_CRITERIA) {
-      if (ratings[criteria.id as keyof RatingsState] === null) {
-        missingRatings.push(criteria.title);
+    const timestamp = new Date().toISOString();
+    const channelId = Number(selectedChannel?.channelId);
+
+    const requestBody = {
+      stationId: stationId,
+      channelId: channelId,
+      languageId: Number(languageId),
+      timestamp: timestamp,
+      rating: {
+        presentation: ratings.presentation,
+        voice: ratings.voice,
+        grammar: ratings.grammar,
+        pronunciation: ratings.pronunciation,
       }
-    }
-    
-    if (missingRatings.length > 0) {
-      setValidationErrors(missingRatings);
-      Alert.alert(
-        'Missing Ratings',
-        `Please rate the following: ${missingRatings.join(', ')}`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
-    // All validations passed, begin submission
-    try {
-      setIsSubmitting(true);
-      
-      // Create current timestamp in ISO format for the API
-      const timestamp = new Date().toISOString();
-      const channelId = Number(selectedChannel?.channelId);
+    };
 
-      // Prepare API request body
-      const requestBody = {
-        stationId: stationId, // Use the stationId from auth context
-        channelId: channelId,
-        languageId: Number(languageId),
-        timestamp: timestamp,
-        rating: {
-          presentation: ratings.presentation,
-          voice: ratings.voice,
-          grammar: ratings.grammar,
-          pronunciation: ratings.pronunciation,
-        }
-      };
-
-      console.log('Submitting rating:', requestBody);
-      
-      // Call the API
-      const response = await api.post<RatingResponse>('/api/ratings/submit', requestBody);
-      
-      console.log('Rating submission response:', response.data);
-      
-      setIsSubmitting(false);
-      
-      // Extract important information from the response
+    console.log('[RateAnnouncer] Submitting rating:', requestBody);
+    
+    const response = await api.post<RatingResponse>('/api/ratings/submit', requestBody);
+    
+    console.log('[RateAnnouncer] Rating response status:', response.status);
+    console.log('[RateAnnouncer] Rating response data:', response.data);
+    
+    setIsSubmitting(false);
+    
+    if (response.status >= 200 && response.status < 300) {
+      // Successful submission
       const { success, message, nextRatingTime } = response.data;
       
       setResponseMessage(message);
       setNextRatingTime(nextRatingTime);
       
       if (success) {
-        // Rating was submitted successfully
         setIsSuccess(true);
         setShowSuccess(true);
         
-        // Navigate back after a delay
         const timer = setTimeout(() => {
-          setShowSuccess(false); // Hide overlay before navigation
+          setShowSuccess(false);
           router.replace('/(app)/home');
         }, 2500);
         
-        // Store timer reference for cleanup
         timerRef.current = timer;
       } else {
-        // Rating was not successful (e.g., user already rated recently)
-        // Show feedback to the user with details about when they can rate again
         Alert.alert(
           'Rating Submission',
           message,
           [{ 
             text: 'OK', 
             onPress: () => {
-              setShowSuccess(false); // Ensure overlay is hidden
+              setShowSuccess(false);
               router.replace('/(app)/home');
             }
           }]
         );
       }
-      
-    } catch (error: any) {
-      console.error('Error submitting rating:', error);
-      setIsSubmitting(false);
-      
+    } else if (response.status >= 400 && response.status < 500) {
+      // Client error - handle gracefully
+      const errorMessage = response.data?.message || 'Rating submission failed';
+      console.log(`[RateAnnouncer] API returned ${response.status}: ${errorMessage}`);
+      Alert.alert('Rating Submission', errorMessage, [{ text: 'OK' }]);
+    } else {
+      // Unexpected status
       Alert.alert(
-        'Submission Error',
-        error.response?.data?.message || 'Failed to submit rating. Please try again later.',
+        'Rating Submission',
+        `Unexpected server response: ${response.status}`,
         [{ text: 'OK' }]
       );
     }
-  };
+    
+  } catch (error: any) {
+    // Only server errors (500+) and network errors reach here
+    console.error('[RateAnnouncer] Server/Network error submitting rating:', error);
+    setIsSubmitting(false);
+    
+    Alert.alert(
+      'Submission Error',
+      'Failed to submit rating. Please try again later.',
+      [{ text: 'OK' }]
+    );
+  }
+};
   
   // Navigate back to rating selection screen
   const handleGoBack = () => {

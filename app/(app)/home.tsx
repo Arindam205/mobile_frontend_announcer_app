@@ -120,19 +120,38 @@ export default function HomeScreen() {
     fetchChannels();
   }, []);
 
-  const fetchChannels = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get('/api/stations/my-channels');
+  // Replace the fetchChannels function in app/(app)/home.tsx
+
+const fetchChannels = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    
+    const response = await api.get('/api/stations/my-channels');
+    
+    console.log('[Home] My-channels response status:', response.status);
+    console.log('[Home] My-channels response data:', response.data);
+    
+    if (response.status >= 200 && response.status < 300) {
+      // Successful response
       setStationData(response.data);
-    } catch (error) {
-      console.error('Error fetching channels:', error);
-      setError('Failed to load channels. Please try again later.');
-    } finally {
-      setLoading(false);
+    } else if (response.status >= 400 && response.status < 500) {
+      // Client error - handle gracefully
+      const errorMessage = response.data?.message || 'Failed to load channels';
+      console.log(`[Home] API returned ${response.status}: ${errorMessage}`);
+      setError(errorMessage);
+    } else {
+      // Unexpected status
+      setError(`Unexpected server response: ${response.status}`);
     }
-  };
+  } catch (error: any) {
+    // Only server errors (500+) and network errors reach here
+    console.error('[Home] Server/Network error fetching channels:', error);
+    setError('Failed to load channels. Please try again later.');
+  } finally {
+    setLoading(false);
+  }
+};
   
   const handleChannelSelect = (channel: Channel, stationName: string) => {
     // Set selected channel data in context

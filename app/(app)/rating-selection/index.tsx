@@ -182,28 +182,36 @@ const RatingSelectionScreen: React.FC = () => {
   }, [dataReady]);
 
   // Fetch languages for the station
-  const fetchLanguages = async () => {
-    setIsLoadingLanguages(true);
-    setApiError(null);
+  // Replace the fetchLanguages function in app/(app)/rating-selection/index.tsx
+
+const fetchLanguages = async () => {
+  setIsLoadingLanguages(true);
+  setApiError(null);
+  
+  try {
+    // Get the JWT token from SecureStore
+    const token = await SecureStore.getItemAsync('token');
     
-    try {
-      // Get the JWT token from SecureStore
-      const token = await SecureStore.getItemAsync('token');
-      
-      if (!token) {
-        console.error('[RatingSelection] No token found, user may not be authenticated');
-        throw new Error('Authentication token not found');
-      }
-      
-      const response = await api.get('/api/languages/station-languages');
-      
+    if (!token) {
+      console.error('[RatingSelection] No token found, user may not be authenticated');
+      throw new Error('Authentication token not found');
+    }
+    
+    const response = await api.get('/api/languages/station-languages');
+    
+    console.log('[RatingSelection] Languages response status:', response.status);
+    console.log('[RatingSelection] Languages response data:', response.data);
+    
+    if (response.status >= 200 && response.status < 300) {
+      // Successful response
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         console.log('[RatingSelection] Languages fetched successfully:', response.data);
-        // Add animation value to each language
+        
         const languagesWithAnim = response.data.map(lang => ({
           ...lang,
           micAnimation: new Animated.Value(0)
         })) as Language[];
+        
         setLanguages(languagesWithAnim);
         
         // Start mic animations for each language after a short delay
@@ -213,7 +221,7 @@ const RatingSelectionScreen: React.FC = () => {
               Animated.sequence([
                 Animated.timing(lang.micAnimation, {
                   toValue: 1,
-                  duration: 1500 + Math.random() * 500, // Randomize timing a bit
+                  duration: 1500 + Math.random() * 500,
                   easing: Easing.inOut(Easing.sin),
                   useNativeDriver: true
                 }),
@@ -227,20 +235,31 @@ const RatingSelectionScreen: React.FC = () => {
             ).start();
           });
         }, 300);
-        
       } else {
         console.log('[RatingSelection] No languages returned from API');
         setLanguages([]);
         setApiError('No languages available for this station.');
       }
-    } catch (error) {
-      console.error('[RatingSelection] Error fetching languages:', error);
-      setApiError('Failed to load languages. Please try again later.');
+    } else if (response.status >= 400 && response.status < 500) {
+      // Client error - handle gracefully
+      const errorMessage = response.data?.message || 'Failed to load languages';
+      console.log(`[RatingSelection] API returned ${response.status}: ${errorMessage}`);
+      setApiError(errorMessage);
       setLanguages([]);
-    } finally {
-      setIsLoadingLanguages(false);
+    } else {
+      // Unexpected status
+      setApiError(`Unexpected server response: ${response.status}`);
+      setLanguages([]);
     }
-  };
+  } catch (error: any) {
+    // Only server errors (500+) and network errors reach here
+    console.error('[RatingSelection] Server/Network error fetching languages:', error);
+    setApiError('Failed to load languages. Please try again later.');
+    setLanguages([]);
+  } finally {
+    setIsLoadingLanguages(false);
+  }
+};
 
   // Component mount logging and initialization
   useEffect(() => {
