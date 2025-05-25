@@ -15,19 +15,39 @@ import {
   ScrollView,
   Modal,
   ImageBackground,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  StyleSheet
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mic, Music, X } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useChannel } from '../../../src/context/ChannelContext';
-import ErrorBoundary from '../../../components/ErrorBoundary';
-import { api } from '../../../src/api/config';
+import { useChannel } from '../../src/context/ChannelContext';
+import ErrorBoundary from '../../components/ErrorBoundary';
+import { api } from '../../src/api/config';
 import * as SecureStore from 'expo-secure-store';
+import { ReactNode } from 'react';
 
-// Import interfaces and styles
-import { Channel, Language, RatingOption } from './interfaces';
-import { styles } from './styles';
+// Interfaces
+interface Channel {
+  channelId: string | number;
+  channelName: string;
+  frequencyDetails?: string;
+  stationId?: string;
+}
+
+interface Language {
+  languageId: number;
+  languageName: string;
+  micAnimation: Animated.Value;
+}
+
+interface RatingOption {
+  id: 'announcer' | 'program';
+  title: string;
+  description: string;
+  icon: ReactNode;
+  image: any;
+}
 
 // Extract frequency helper function
 const extractFrequency = (frequencyDetails: string | undefined): string => {
@@ -76,14 +96,14 @@ const RatingSelectionScreen: React.FC = () => {
       title: 'Rate Announcer',
       description: "Provide feedback for the announcer's performance",
       icon: <Mic size={28} color="#fff" />,
-      image: require('../../../assets/images/rate-announcer.png')
+      image: require('../../assets/images/rate-announcer.png')
     },
     {
       id: 'program',
       title: 'Rate Program',
       description: 'Evaluate program content and quality',
       icon: <Music size={28} color="#fff" />,
-      image: require('../../../assets/images/rate-program.png')
+      image: require('../../assets/images/rate-program.png')
     }
   ];
 
@@ -182,84 +202,82 @@ const RatingSelectionScreen: React.FC = () => {
   }, [dataReady]);
 
   // Fetch languages for the station
-  // Replace the fetchLanguages function in app/(app)/rating-selection/index.tsx
-
-const fetchLanguages = async () => {
-  setIsLoadingLanguages(true);
-  setApiError(null);
-  
-  try {
-    // Get the JWT token from SecureStore
-    const token = await SecureStore.getItemAsync('token');
+  const fetchLanguages = async () => {
+    setIsLoadingLanguages(true);
+    setApiError(null);
     
-    if (!token) {
-      console.error('[RatingSelection] No token found, user may not be authenticated');
-      throw new Error('Authentication token not found');
-    }
-    
-    const response = await api.get('/api/languages/station-languages');
-    
-    console.log('[RatingSelection] Languages response status:', response.status);
-    console.log('[RatingSelection] Languages response data:', response.data);
-    
-    if (response.status >= 200 && response.status < 300) {
-      // Successful response
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        console.log('[RatingSelection] Languages fetched successfully:', response.data);
-        
-        const languagesWithAnim = response.data.map(lang => ({
-          ...lang,
-          micAnimation: new Animated.Value(0)
-        })) as Language[];
-        
-        setLanguages(languagesWithAnim);
-        
-        // Start mic animations for each language after a short delay
-        setTimeout(() => {
-          languagesWithAnim.forEach(lang => {
-            Animated.loop(
-              Animated.sequence([
-                Animated.timing(lang.micAnimation, {
-                  toValue: 1,
-                  duration: 1500 + Math.random() * 500,
-                  easing: Easing.inOut(Easing.sin),
-                  useNativeDriver: true
-                }),
-                Animated.timing(lang.micAnimation, {
-                  toValue: 0,
-                  duration: 1500 + Math.random() * 500,
-                  easing: Easing.inOut(Easing.sin),
-                  useNativeDriver: true
-                })
-              ])
-            ).start();
-          });
-        }, 300);
-      } else {
-        console.log('[RatingSelection] No languages returned from API');
-        setLanguages([]);
-        setApiError('No languages available for this station.');
+    try {
+      // Get the JWT token from SecureStore
+      const token = await SecureStore.getItemAsync('token');
+      
+      if (!token) {
+        console.error('[RatingSelection] No token found, user may not be authenticated');
+        throw new Error('Authentication token not found');
       }
-    } else if (response.status >= 400 && response.status < 500) {
-      // Client error - handle gracefully
-      const errorMessage = response.data?.message || 'Failed to load languages';
-      console.log(`[RatingSelection] API returned ${response.status}: ${errorMessage}`);
-      setApiError(errorMessage);
+      
+      const response = await api.get('/api/languages/station-languages');
+      
+      console.log('[RatingSelection] Languages response status:', response.status);
+      console.log('[RatingSelection] Languages response data:', response.data);
+      
+      if (response.status >= 200 && response.status < 300) {
+        // Successful response
+        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+          console.log('[RatingSelection] Languages fetched successfully:', response.data);
+          
+          const languagesWithAnim = response.data.map((lang : any) => ({
+            ...lang,
+            micAnimation: new Animated.Value(0)
+          })) as Language[];
+          
+          setLanguages(languagesWithAnim);
+          
+          // Start mic animations for each language after a short delay
+          setTimeout(() => {
+            languagesWithAnim.forEach(lang => {
+              Animated.loop(
+                Animated.sequence([
+                  Animated.timing(lang.micAnimation, {
+                    toValue: 1,
+                    duration: 1500 + Math.random() * 500,
+                    easing: Easing.inOut(Easing.sin),
+                    useNativeDriver: true
+                  }),
+                  Animated.timing(lang.micAnimation, {
+                    toValue: 0,
+                    duration: 1500 + Math.random() * 500,
+                    easing: Easing.inOut(Easing.sin),
+                    useNativeDriver: true
+                  })
+                ])
+              ).start();
+            });
+          }, 300);
+        } else {
+          console.log('[RatingSelection] No languages returned from API');
+          setLanguages([]);
+          setApiError('No languages available for this station.');
+        }
+      } else if (response.status >= 400 && response.status < 500) {
+        // Client error - handle gracefully
+        const errorMessage = response.data?.message || 'Failed to load languages';
+        console.log(`[RatingSelection] API returned ${response.status}: ${errorMessage}`);
+        setApiError(errorMessage);
+        setLanguages([]);
+      } else {
+        // Unexpected status
+        setApiError(`Unexpected server response: ${response.status}`);
+        setLanguages([]);
+      }
+    } catch (error: any) {
+      // Only server errors (500+) and network errors reach here
+      console.error('[RatingSelection] Server/Network error fetching languages:', error);
+      setApiError('Failed to load languages. Please try again later.');
       setLanguages([]);
-    } else {
-      // Unexpected status
-      setApiError(`Unexpected server response: ${response.status}`);
-      setLanguages([]);
+    } finally {
+      setIsLoadingLanguages(false);
     }
-  } catch (error: any) {
-    // Only server errors (500+) and network errors reach here
-    console.error('[RatingSelection] Server/Network error fetching languages:', error);
-    setApiError('Failed to load languages. Please try again later.');
-    setLanguages([]);
-  } finally {
-    setIsLoadingLanguages(false);
-  }
-};
+  };
 
   // Component mount logging and initialization
   useEffect(() => {
@@ -361,62 +379,35 @@ const fetchLanguages = async () => {
   };
 
   // Handle language selection
-// const handleLanguageSelect = (language: Language) => {
-//   setSelectedLanguage(language);
-//   setShowLanguageModal(false);
-  
-//   // Navigate based on the selected option
-//   if (selectedOption?.id === 'announcer') {
-//     console.log(`[RatingSelection] Selected ${language.languageName} language for announcer rating`);
+  const handleLanguageSelect = (language: Language) => {
+    setSelectedLanguage(language);
+    setShowLanguageModal(false);
     
-//     // Navigate to announcer rating page
-//     router.push({
-//       pathname: "/(app)/rate-announcer",
-//       params: {
-//         languageId: language.languageId,
-//         languageName: language.languageName
-//       }
-//     });
-//   } else if (selectedOption?.id === 'program') {
-//     // For program rating, just show an alert for now
-//     Alert.alert(
-//       "Selection Made",
-//       `You selected to rate the program in ${language.languageName} language.`,
-//       [{ text: 'OK' }]
-//     );
-//   }
-// };
-
-  // Handle language selection
-const handleLanguageSelect = (language: Language) => {
-  setSelectedLanguage(language);
-  setShowLanguageModal(false);
-  
-  // Navigate based on the selected option
-  if (selectedOption?.id === 'announcer') {
-    console.log(`[RatingSelection] Selected ${language.languageName} language for announcer rating`);
-    
-    // Navigate to announcer rating page
-    router.push({
-      pathname: "/(app)/rate-announcer",
-      params: {
-        languageId: language.languageId,
-        languageName: language.languageName
-      }
-    });
-  } else if (selectedOption?.id === 'program') {
-    console.log(`[RatingSelection] Selected ${language.languageName} language for program rating`);
-    
-    // Navigate to program selection page
-    router.push({
-      pathname: "/(app)/program-selection",
-      params: {
-        languageId: language.languageId,
-        languageName: language.languageName
-      }
-    });
-  }
-};
+    // Navigate based on the selected option
+    if (selectedOption?.id === 'announcer') {
+      console.log(`[RatingSelection] Selected ${language.languageName} language for announcer rating`);
+      
+      // Navigate to announcer rating page
+      router.push({
+        pathname: "/(app)/rate-announcer",
+        params: {
+          languageId: language.languageId,
+          languageName: language.languageName
+        }
+      });
+    } else if (selectedOption?.id === 'program') {
+      console.log(`[RatingSelection] Selected ${language.languageName} language for program rating`);
+      
+      // Navigate to program selection page
+      router.push({
+        pathname: "/(app)/program-selection",
+        params: {
+          languageId: language.languageId,
+          languageName: language.languageName
+        }
+      });
+    }
+  };
 
   // Close the language modal
   const handleCloseLanguageModal = () => {
@@ -484,7 +475,7 @@ const handleLanguageSelect = (language: Language) => {
               ]} 
             />
             <Animated.Image
-              source={require('../../../assets/images/Microphone-white.png')}
+              source={require('../../assets/images/Microphone-white.png')}
               style={[
                 styles.microphoneImage,
                 {
@@ -683,5 +674,305 @@ const handleLanguageSelect = (language: Language) => {
     </ErrorBoundary>
   );
 };
+
+// Styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff'
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 12
+  },
+  header: {
+    position: 'relative',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 12
+  },
+  headerContent: {
+    padding: 24,
+    paddingTop: 60,
+    paddingBottom: 30
+  },
+  headerTitle: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 0,
+    letterSpacing: 1.2
+  },
+  frequencyContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 8,
+    marginTop: -4
+  },
+  frequencyText: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: '#E9D5FF',
+    letterSpacing: 2
+  },
+  mhzText: {
+    fontSize: 18,
+    fontWeight: '300',
+    color: '#E9D5FF',
+    marginLeft: 4,
+    opacity: 0.9
+  },
+  stationName: {
+    fontSize: 16,
+    color: '#FDE68A',
+    marginBottom: 10,
+    fontWeight: '600'
+  },
+  headerDescription: {
+    fontSize: 16,
+    color: '#F3E8FF',
+    opacity: 0.9,
+    lineHeight: 24,
+    fontWeight: '400',
+    letterSpacing: 0.8
+  },
+  microphoneContainer: {
+    position: 'absolute',
+    bottom: 5,
+    right: 15,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible'
+  },
+  microphoneGlow: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
+    elevation: 10
+  },
+  microphoneImage: {
+    width: 120,
+    height: 120,
+    opacity: 0.92,
+    transform: [{ rotateZ: '-100deg' }],
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 24
+  },
+  cardsContainer: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'center',
+    gap: 24
+  },
+  cardContainer: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    height: 180,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10
+  },
+  cardTouchable: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    overflow: 'hidden'
+  },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  cardOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)', // Overlay on entire card
+    borderRadius: 20,
+    padding: 20,
+    justifyContent: 'center'
+  },
+  cardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%'
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)'
+  },
+  textContainer: {
+    flex: 1
+  },
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 1
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end'
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: Dimensions.get('window').height * 0.7,
+    paddingBottom: 16, // Add padding at the bottom for better spacing
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    padding: 16
+  },
+  modalHeaderSpacer: {
+    width: 40
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    textAlign: 'center'
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  loadingLanguagesContainer: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  loadingLanguagesText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center'
+  },
+  apiErrorContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  apiErrorText: {
+    fontSize: 16,
+    color: '#EF4444',
+    textAlign: 'center'
+  },
+  languagesList: {
+    maxHeight: Dimensions.get('window').height * 0.6
+  },
+  languagesListContent: {
+    flexGrow: 1 // Allow content to grow to fill available space
+  },
+  languageOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'transparent',
+    minHeight: 60, // Minimum height to ensure sufficient tap area
+  },
+  languageOptionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  lastLanguageOption: {
+    marginBottom: 0,
+    paddingBottom: 16,
+  },
+  selectedLanguageOption: {
+    backgroundColor: '#F3F4F6'
+  },
+  languageText: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: 'normal'
+  },
+  selectedLanguageText: {
+    fontWeight: '600'
+  },
+  languageMicContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(243, 244, 246, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 4,
+    borderWidth: 1.5,
+    borderColor: '#6366f1', // Purple-blue border color
+  },
+  noLanguagesContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  noLanguagesText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center'
+  }
+});
 
 export default RatingSelectionScreen;

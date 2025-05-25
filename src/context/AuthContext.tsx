@@ -89,7 +89,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[AuthContext] Starting login process...');
       const formattedPhone = phoneNumber.startsWith('+91') ? phoneNumber : `+91${phoneNumber}`;
       
-      // Make API call - 400s won't throw errors with our new config
       const response = await api.post('/api/auth/login', {
         phoneNumber: formattedPhone,
         password,
@@ -98,7 +97,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[AuthContext] Login response status:', response.status);
       console.log('[AuthContext] Login response data:', response.data);
       
-      // Handle response based on status code
       if (response.status === 200) {
         // Successful login
         const responseData = response.data;
@@ -133,27 +131,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('[AuthContext] Login successful');
         
       } else if (response.status >= 400 && response.status < 500) {
-        // Client errors (400-499) - invalid credentials, validation errors, etc.
-        const errorMessage = response.data?.message || response.data?.error || 'Login failed';
-        console.log(`[AuthContext] Login failed with status ${response.status}: ${errorMessage}`);
+        // Client errors (400-499) - Extract the actual error message from server
+        let errorMessage = 'Login failed';
+        
+        if (response.data) {
+          if (typeof response.data === 'string') {
+            errorMessage = response.data;
+          } else if (typeof response.data === 'object') {
+            // Try different common error message fields
+            errorMessage = response.data.message || 
+                          response.data.error || 
+                          response.data.details || 
+                          response.data.errorMessage ||
+                          response.data.msg ||
+                          'Invalid credentials';
+          }
+        }
+        
+        // Provide user-friendly messages for common status codes
+        if (response.status === 400) {
+          // Keep the server message for 400 errors (like invalid credentials)
+            errorMessage = response.data?.message || response.data?.error || 'Login failed';
+            console.log(`[AuthContext] Login failed with status ${response.status}: ${errorMessage}`);
+        } else if (response.status === 401) {
+          errorMessage = 'Invalid phone number or password';
+        } else if (response.status === 403) {
+          errorMessage = 'Account access denied';
+        } else if (response.status === 404) {
+          errorMessage = 'Login service not available';
+        }
+        
         throw new Error(errorMessage);
         
       } else {
-        // Unexpected status code
         throw new Error(`Unexpected response status: ${response.status}`);
       }
       
     } catch (error: any) {
       console.error('[AuthContext] Login error:', error.message);
       
-      // Only log detailed error info for non-client errors
-      if (!error.response || error.response.status >= 500) {
-        console.error('[AuthContext] Error details:', {
-          status: error.response?.status,
-          data: error.response?.data
-        });
+      // Enhanced error handling for network issues
+      if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('Connection timeout. Please try again.');
+      } else if (error.message.includes('ECONNREFUSED')) {
+        throw new Error('Server is not available. Please try again later.');
       }
       
+      // If it's already a formatted error message, just pass it through
       throw error;
     }
   };
@@ -162,7 +188,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('[AuthContext] Starting logout process...');
       
-      // Try to call logout endpoint
       try {
         const response = await api.post('/api/auth/logout');
         console.log('[AuthContext] Server logout response:', response.status);
@@ -170,12 +195,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[AuthContext] Server logout failed, continuing with local logout');
       }
       
-      // Clear stored data
       await SecureStore.deleteItemAsync('token');
       await SecureStore.deleteItemAsync('userData');
       setAuthToken(null);
       
-      // Reset state
       setState(prev => ({
         ...prev,
         token: null,
@@ -223,37 +246,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         requestData.phoneNumber = formattedPhone;
       }
       
-      // Make API call - 400s won't throw errors with our new config
       const response = await api.post('/api/auth/register', requestData);
       
       console.log('[AuthContext] Registration response status:', response.status);
       console.log('[AuthContext] Registration response data:', response.data);
       
-      // Handle response based on status code
       if (response.status >= 200 && response.status < 300) {
-        // Successful registration
         console.log('[AuthContext] Registration successful');
         
       } else if (response.status >= 400 && response.status < 500) {
-        // Client errors (400-499) - validation errors, duplicate phone, etc.
-        const errorMessage = response.data?.message || response.data?.error || 'Registration failed';
+        // Extract detailed error message for registration
+        let errorMessage = 'Registration failed';
+        
+        if (response.data) {
+          if (typeof response.data === 'string') {
+            errorMessage = response.data;
+          } else if (typeof response.data === 'object') {
+            errorMessage = response.data.message || 
+                          response.data.error || 
+                          response.data.details || 
+                          response.data.errorMessage ||
+                          'Registration failed';
+          }
+        }
+        
+        // Common registration error messages
+        if (response.status === 400) {
+          // Keep server message for validation errors
+        } else if (response.status === 409) {
+          errorMessage = 'Phone number already registered';
+        }
+        
         console.log(`[AuthContext] Registration failed with status ${response.status}: ${errorMessage}`);
         throw new Error(errorMessage);
         
       } else {
-        // Unexpected status code
         throw new Error(`Unexpected response status: ${response.status}`);
       }
       
     } catch (error: any) {
       console.error('[AuthContext] Registration error:', error.message);
       
-      // Only log detailed error info for non-client errors
-      if (!error.response || error.response.status >= 500) {
-        console.error('[AuthContext] Error details:', {
-          status: error.response?.status,
-          data: error.response?.data
-        });
+      // Handle network errors for registration
+      if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
       }
       
       throw error;

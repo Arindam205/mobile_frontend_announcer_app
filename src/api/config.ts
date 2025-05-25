@@ -1,83 +1,91 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
 
-// Get API URL from environment variables or use production default
-export const API_URL = "http://117.247.79.184:8081";
+// Detect development mode safely
+const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
+// API Base URL
+export const API_URL = Constants.expoConfig?.extra?.apiUrl || "http://117.247.79.184:8081";
+
+// API Endpoints
 export const ENDPOINTS = {
   VERIFY_PHONE: '/api/auth/verify-phone',
   REGISTER: '/api/auth/register',
   LOGIN: '/api/auth/login',
-  LOGOUT: '/api/auth/logout'
+  LOGOUT: '/api/auth/logout',
 };
 
+// Axios Instance
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'Cache-Control': 'no-cache',
+    'User-Agent': 'ReactNative-Android-App',
   },
-  timeout: 30000,
+  timeout: 30000, // 30 seconds
   maxRedirects: 5,
-  // CRITICAL FIX: Only treat server errors (500+) as axios errors
-  // All client errors (400-499) are valid responses that should be handled by the app
-  validateStatus: function (status) {
-    return status < 500;
-  },
+  validateStatus: () => true, // Accept all status codes
 });
 
-// Add request interceptor for debugging
+// Request Interceptor
 api.interceptors.request.use(
   (config) => {
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    if (config.data) {
-      console.log('[API] Request Data:', JSON.stringify(config.data, null, 2));
+    if (isDev) {
+      console.log(`[API] Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     }
+
+    config.headers['Accept'] = 'application/json';
+    config.headers['Content-Type'] = 'application/json';
+
     return config;
   },
   (error) => {
-    console.error('[API] Request Error:', error);
+    if (isDev) {
+      console.error('[API] Request Error:', error);
+    }
     return Promise.reject(error);
   }
 );
 
-// Add response interceptor - handle ALL responses consistently
+// Response Interceptor
 api.interceptors.response.use(
   (response) => {
-    console.log(`[API] Response: ${response.status} from ${response.config.url}`);
-    console.log('[API] Response Data:', JSON.stringify(response.data, null, 2));
-    
-    // IMPORTANT: Never throw errors for 2xx, 3xx, or 4xx responses
-    // Let the calling code handle all responses based on status and data
-    return response;
+    if (isDev) {
+      console.log(`[API] Response: ${response.status} from ${response.config.url}`);
+    }
+    return response; // Let the app handle all status codes
   },
   (error) => {
-    // Only server errors (500+) and network errors reach here
-    console.error('[API] Server/Network Error:', {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      url: error.config?.url,
-      data: error.response?.data
-    });
-    
-    if (error.response?.status >= 500) {
+    // Graceful message handling
+    if (error.code === 'ECONNABORTED') {
+      error.message = 'Request timeout. Please try again.';
+    } else if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
+      error.message = 'Unable to connect. Please check your internet connection.';
+    } else if (error.response?.status >= 500) {
       error.message = 'Server error. Please try again later.';
-    } else if (error.request) {
-      error.message = 'Network error. Please check your connection.';
+    } else if (!error.response) {
+      error.message = 'Unexpected error occurred. Please try again.';
     }
-    
+
+    if (isDev) {
+      console.error('[API] Response Error:', {
+        message: error.message,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
+    }
+
     return Promise.reject(error);
   }
 );
 
+// Token Setter
 export const setAuthToken = (token: string | null) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    console.log('[API] Auth token set for requests');
   } else {
     delete api.defaults.headers.common['Authorization'];
-    console.log('[API] Auth token removed from requests');
   }
 };
