@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   headerTitle: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '700',
     color: 'white',
     marginBottom: 20,
