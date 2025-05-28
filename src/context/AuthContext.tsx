@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { AppState, AppStateStatus } from 'react-native';
 import { api, setAuthToken } from '../api/config';
 
 interface AuthState {
@@ -31,56 +32,127 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userId: null,
   });
 
+  // Use ref to track if token has been loaded to prevent multiple loads
+  const hasLoadedToken = useRef(false);
+  const isLoadingToken = useRef(false);
+
+  // Load token only once on app start
   useEffect(() => {
-    loadToken();
+    if (!hasLoadedToken.current && !isLoadingToken.current) {
+      loadToken();
+    }
   }, []);
 
+  // Handle app state changes - only reload token if app was backgrounded for a significant time
+  useEffect(() => {
+    let appStateTimeout: NodeJS.Timeout;
+    let wasInBackground = false;
+    
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      console.log('[AuthContext] App state changed to:', nextAppState);
+      
+      if (nextAppState === 'background') {
+        wasInBackground = true;
+        // Set a timer to mark when app has been in background for a while
+        appStateTimeout = setTimeout(() => {
+          console.log('[AuthContext] App has been in background for 30 seconds');
+        }, 30000); // 30 seconds
+      } else if (nextAppState === 'active' && wasInBackground) {
+        clearTimeout(appStateTimeout);
+        
+        // Only reload token if app was in background AND we have an authenticated user
+        if (state.isAuthenticated && hasLoadedToken.current) {
+          console.log('[AuthContext] App became active after being backgrounded, checking token validity');
+          // You could add a token validation check here if needed
+          // For now, we trust the stored token until it expires
+        }
+        wasInBackground = false;
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      clearTimeout(appStateTimeout);
+      subscription?.remove();
+    };
+  }, [state.isAuthenticated]);
+
   const loadToken = async () => {
+    if (isLoadingToken.current) {
+      console.log('[AuthContext] Token loading already in progress, skipping...');
+      return;
+    }
+
     try {
+      isLoadingToken.current = true;
       console.log('[AuthContext] Loading stored token...');
-      const token = await SecureStore.getItemAsync('token');
-      const userData = await SecureStore.getItemAsync('userData');
+      
+      const [token, userData] = await Promise.all([
+        SecureStore.getItemAsync('token'),
+        SecureStore.getItemAsync('userData')
+      ]);
+      
+      console.log('[AuthContext] Token exists:', !!token);
+      console.log('[AuthContext] UserData exists:', !!userData);
       
       if (token) {
         setAuthToken(token);
         
+        let parsedUserData = null;
         if (userData) {
           try {
-            const parsedUserData = JSON.parse(userData);
-            setState(prev => ({
-              ...prev,
-              token,
-              isAuthenticated: true,
-              isLoading: false,
-              name: parsedUserData.name || null,
-              role: parsedUserData.role || null,
-              stationId: parsedUserData.stationId || null,
-              userId: parsedUserData.userId || null,
-            }));
+            parsedUserData = JSON.parse(userData);
+            console.log('[AuthContext] User data parsed successfully');
           } catch (parseError) {
             console.error('[AuthContext] Error parsing user data:', parseError);
-            await SecureStore.deleteItemAsync('userData');
-            setState(prev => ({
-              ...prev,
-              token,
-              isAuthenticated: true,
-              isLoading: false,
-            }));
+            parsedUserData = null;
           }
-        } else {
-          setState(prev => ({
-            ...prev,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-          }));
         }
+        
+        setState(prev => ({
+          ...prev,
+          token,
+          isAuthenticated: true,
+          isLoading: false,
+          name: parsedUserData?.name || null,
+          role: parsedUserData?.role || null,
+          stationId: parsedUserData?.stationId || null,
+          userId: parsedUserData?.userId || null,
+        }));
+        
+        console.log('[AuthContext] Authentication state restored successfully');
       } else {
-        setState(prev => ({ ...prev, isLoading: false }));
+        console.log('[AuthContext] No token found, user needs to login');
+        setAuthToken(null);
+        
+        setState(prev => ({
+          ...prev,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+          name: null,
+          role: null,
+          stationId: null,
+          userId: null,
+        }));
       }
     } catch (error) {
       console.error('[AuthContext] Error loading token:', error);
-      setState(prev => ({ ...prev, isLoading: false }));
+      
+      setAuthToken(null);
+      setState(prev => ({
+        ...prev,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+        name: null,
+        role: null,
+        stationId: null,
+        userId: null,
+      }));
+    } finally {
+      hasLoadedToken.current = true;
+      isLoadingToken.current = false;
     }
   };
 
@@ -95,10 +167,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       console.log('[AuthContext] Login response status:', response.status);
-      console.log('[AuthContext] Login response data:', response.data);
       
       if (response.status === 200) {
-        // Successful login
         const responseData = response.data;
         const token = responseData.token || responseData.accessToken || responseData.jwt;
         
@@ -114,14 +184,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phoneNumber: formattedPhone,
         };
         
-        await SecureStore.setItemAsync('token', token);
-        await SecureStore.setItemAsync('userData', JSON.stringify(userData));
+        await Promise.all([
+          SecureStore.setItemAsync('token', token),
+          SecureStore.setItemAsync('userData', JSON.stringify(userData))
+        ]);
+        
         setAuthToken(token);
         
         setState(prev => ({
           ...prev,
           token,
           isAuthenticated: true,
+          isLoading: false,
           name: userData.name,
           role: userData.role,
           stationId: userData.stationId,
@@ -131,14 +205,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('[AuthContext] Login successful');
         
       } else if (response.status >= 400 && response.status < 500) {
-        // Client errors (400-499) - Extract the actual error message from server
         let errorMessage = 'Login failed';
         
         if (response.data) {
           if (typeof response.data === 'string') {
             errorMessage = response.data;
           } else if (typeof response.data === 'object') {
-            // Try different common error message fields
             errorMessage = response.data.message || 
                           response.data.error || 
                           response.data.details || 
@@ -148,12 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
-        // Provide user-friendly messages for common status codes
-        if (response.status === 400) {
-          // Keep the server message for 400 errors (like invalid credentials)
-            errorMessage = response.data?.message || response.data?.error || 'Login failed';
-            console.log(`[AuthContext] Login failed with status ${response.status}: ${errorMessage}`);
-        } else if (response.status === 401) {
+        if (response.status === 401) {
           errorMessage = 'Invalid phone number or password';
         } else if (response.status === 403) {
           errorMessage = 'Account access denied';
@@ -170,7 +237,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('[AuthContext] Login error:', error.message);
       
-      // Enhanced error handling for network issues
       if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
         throw new Error('Unable to connect to server. Please check your internet connection.');
       } else if (error.message.includes('timeout')) {
@@ -179,7 +245,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Server is not available. Please try again later.');
       }
       
-      // If it's already a formatted error message, just pass it through
       throw error;
     }
   };
@@ -188,6 +253,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('[AuthContext] Starting logout process...');
       
+      setAuthToken(null);
+      
       try {
         const response = await api.post('/api/auth/logout');
         console.log('[AuthContext] Server logout response:', response.status);
@@ -195,38 +262,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[AuthContext] Server logout failed, continuing with local logout');
       }
       
-      await SecureStore.deleteItemAsync('token');
-      await SecureStore.deleteItemAsync('userData');
-      setAuthToken(null);
+      await Promise.all([
+        SecureStore.deleteItemAsync('token'),
+        SecureStore.deleteItemAsync('userData')
+      ]);
       
       setState(prev => ({
         ...prev,
         token: null,
         isAuthenticated: false,
+        isLoading: false,
         name: null,
         role: null,
         stationId: null,
         userId: null,
       }));
       
+      // Reset the loaded flag so token can be loaded again after next login
+      hasLoadedToken.current = false;
+      
       console.log('[AuthContext] Logout completed');
       
     } catch (error: any) {
       console.error('[AuthContext] Logout error:', error);
-      // Force local logout even if server logout fails
+      
       try {
-        await SecureStore.deleteItemAsync('token');
-        await SecureStore.deleteItemAsync('userData');
         setAuthToken(null);
+        await Promise.all([
+          SecureStore.deleteItemAsync('token'),
+          SecureStore.deleteItemAsync('userData')
+        ]);
         setState(prev => ({
           ...prev,
           token: null,
           isAuthenticated: false,
+          isLoading: false,
           name: null,
           role: null,
           stationId: null,
           userId: null,
         }));
+        hasLoadedToken.current = false;
       } catch (cleanupError) {
         console.error('[AuthContext] Failed to cleanup local data:', cleanupError);
       }
@@ -249,13 +325,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await api.post('/api/auth/register', requestData);
       
       console.log('[AuthContext] Registration response status:', response.status);
-      console.log('[AuthContext] Registration response data:', response.data);
       
       if (response.status >= 200 && response.status < 300) {
         console.log('[AuthContext] Registration successful');
         
       } else if (response.status >= 400 && response.status < 500) {
-        // Extract detailed error message for registration
         let errorMessage = 'Registration failed';
         
         if (response.data) {
@@ -270,14 +344,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
-        // Common registration error messages
-        if (response.status === 400) {
-          // Keep server message for validation errors
-        } else if (response.status === 409) {
+        if (response.status === 409) {
           errorMessage = 'Phone number already registered';
         }
         
-        console.log(`[AuthContext] Registration failed with status ${response.status}: ${errorMessage}`);
         throw new Error(errorMessage);
         
       } else {
@@ -287,7 +357,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('[AuthContext] Registration error:', error.message);
       
-      // Handle network errors for registration
       if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
         throw new Error('Unable to connect to server. Please check your internet connection.');
       }

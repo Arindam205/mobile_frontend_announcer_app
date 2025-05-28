@@ -456,7 +456,7 @@ const RatingSelectionScreen: React.FC = () => {
             <Text style={styles.headerTitle}>{selectedChannel.channelName || 'Channel'}</Text>
             <View style={styles.frequencyContainer}>
               {/* <Text style={styles.frequencyText}>{frequencyValue}</Text> */}
-              <Text style={styles.frequencyText}>{selectedChannel.frequencyDetails?.replace(/^\S+\s/, '')}</Text>
+              <Text style={styles.frequencyText}>{selectedChannel.frequencyDetails?.replace(/\b(AM|FM)\s?/gi, '')}</Text>
               {/* <Text style={styles.mhzText}>MHz</Text> */}
             </View>
             {stationName ? (
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
     marginTop: -4
   },
   frequencyText: {
-    fontSize: 28,
+    fontSize: 17,
     fontWeight: '300',
     color: '#E9D5FF',
     letterSpacing: 2
