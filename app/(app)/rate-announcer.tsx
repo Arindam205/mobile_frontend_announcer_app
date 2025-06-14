@@ -639,17 +639,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 10,
+    paddingVertical: 5
   },
   starContainer: {
     width: 50,
-    height: 50,
+    height: 60,
     justifyContent: 'center',
     alignItems: 'center',
   },
   starInner: {
     position: 'relative',
     width: 40,
-    height: 40,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -670,7 +671,7 @@ const styles = StyleSheet.create({
   halfStarContainer: {
     position: 'relative',
     width: 40,
-    height: 40,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -679,7 +680,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     width: 20, // Exactly half the width
-    height: 40,
+    height: 50,
     overflow: 'hidden',
   },
   leftHalfTouch: {

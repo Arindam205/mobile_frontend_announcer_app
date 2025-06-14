@@ -41,7 +41,7 @@ const mediumOptions = [
   'Radio',
   'Youtube',
   'Facebook',
-  'AIR app'
+  'NewsOnAir app'
 ];
 
 // Define listening hours options

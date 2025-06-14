@@ -576,16 +576,16 @@ const RatingSelectionScreen: React.FC = () => {
                 <View style={styles.modalContainer}>
                   {/* Header */}
                   <View style={styles.modalHeader}>
-                    <View style={styles.modalHeaderSpacer} />
+                    {/* <View style={styles.modalHeaderSpacer} /> */}
                     <Text style={styles.modalTitle}>
-                      {`Select Language for ${selectedOption?.title}`}
+                      {`Select Language to ${selectedOption?.title}`}
                     </Text>
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                       onPress={handleCloseLanguageModal}
                       style={styles.modalCloseButton}
                     >
                       <X size={24} color="#6B7280" />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                   </View>
                   
                   {/* Language list */}
@@ -877,28 +877,33 @@ const styles = StyleSheet.create({
     shadowRadius: 20
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    // flexDirection: 'row',
+    // justifyContent: 'space-between',
+    // alignItems: 'center',
+    // borderBottomWidth: 1,
+    // borderBottomColor: '#E5E7EB',
+    // padding: 16
+    justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     padding: 16
   },
-  modalHeaderSpacer: {
-    width: 40
-  },
+  // modalHeaderSpacer: {
+  //   width: 40
+  // },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1F2937',
     textAlign: 'center'
   },
-  modalCloseButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
+  // modalCloseButton: {
+  //   width: 40,
+  //   height: 40,
+  //   justifyContent: 'center',
+  //   alignItems: 'center'
+  // },
   loadingLanguagesContainer: {
     padding: 30,
     alignItems: 'center',
