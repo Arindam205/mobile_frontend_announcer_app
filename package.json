@@ -13,7 +13,7 @@
     "build:ios": "npm run prebuild && cd ios && xcodebuild -workspace announce_rj_app.xcworkspace -scheme announce_rj_app -configuration Release"
   },
   "dependencies": {
-    "@expo/vector-icons": "^14.0.0",
+    "@expo/vector-icons": "~14.0.4",
     "@lucide/lab": "^0.1.2",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-community/datetimepicker": "8.2.0",
@@ -21,7 +21,8 @@
     "@react-native-picker/picker": "2.9.0",
     "@react-navigation/native": "^7.0.0",
     "axios": "^1.6.7",
-    "expo": "~52.0.0",
+    "expo": "~52.0.47",
+    "expo-av": "~15.0.2",
     "expo-blur": "~14.0.3",
     "expo-build-properties": "^0.13.3",
     "expo-constants": "~17.0.8",
@@ -47,6 +48,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg": "15.8.0",
     "react-native-svg-transformer": "^1.5.1",
+    "react-native-track-player": "^4.1.1",
     "react-native-web": "~0.19.6"
   },
   "devDependencies": {

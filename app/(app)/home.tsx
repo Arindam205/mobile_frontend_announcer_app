@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   channelFrequency: {
-    fontSize: 16,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
     marginLeft: 36,
     marginTop: 4,
