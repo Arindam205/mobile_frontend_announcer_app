@@ -1,4 +1,3 @@
-// app/_layout.tsx
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -7,9 +6,15 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { AuthProvider } from '../src/context/AuthContext';
 import AppErrorBoundary from '../components/ErrorBoundary';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import TrackPlayer from 'react-native-track-player';
 
 export default function RootLayout() {
   useFrameworkReady();
+
+  useEffect(() => {
+    // Register the TrackPlayer service for background playback
+    TrackPlayer.registerPlaybackService(() => require('../src/services/TrackPlayerService'));
+  }, []);
 
   return (
     <AppErrorBoundary>

@@ -6,7 +6,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/images/AkashvaniLogo1.png",
     userInterfaceStyle: "automatic",
-    owner: "amigos1997",
+    owner: "amigos2025",
     scheme: "raise",
 
     splash: {
@@ -36,9 +36,11 @@ module.exports = {
       permissions: [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
         "WAKE_LOCK",
-        "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS"
+        "MODIFY_AUDIO_SETTINGS",
+        "FOREGROUND_SERVICE",
+        "RECEIVE_BOOT_COMPLETED"
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/images/AkashvaniLogo1.png",
@@ -68,7 +70,7 @@ module.exports = {
 
     extra: {
       eas: {
-        projectId: "b2fea7ee-700c-404f-9ac8-10888a5bac79"
+        projectId: "b579b573-0095-4e48-bea0-55e331828e05"
       },
       apiUrl: process.env.API_URL || "http://117.247.79.184:8081"
     },

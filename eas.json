@@ -11,7 +11,7 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "env": {
-        "API_URL": "http://192.168.0.125:8080"
+        "API_URL": "http://117.247.79.184:8081"
       }
     },
     "debug": {
