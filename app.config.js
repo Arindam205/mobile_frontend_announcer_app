@@ -30,19 +30,21 @@ module.exports = {
     android: {
       package: "com.subhra.raiseapp",
       versionCode: 3,
-      minSdkVersion: 24, // CHANGED: From 23 to 24 to match your current APK
-      compileSdkVersion: 35, // CHANGED: From 34 to 35 to match your current APK  
-      targetSdkVersion: 34, // KEPT: Already matches your APK
+      minSdkVersion: 24,
+      compileSdkVersion: 35,
+      targetSdkVersion: 34,
       permissions: [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/images/AkashvaniLogo1.png",
         backgroundColor: "#FFFFFF"
       },
-      usesCleartextTraffic: true // Still required here as fallback
+      usesCleartextTraffic: true
     },
 
     web: {
@@ -61,7 +63,8 @@ module.exports = {
           }
         }
       ],
-      "./withNetworkSecurityConfig" // 👈 custom plugin added here
+      "./withNetworkSecurityConfig",
+      "react-native-track-player"
     ],
 
     extra: {
