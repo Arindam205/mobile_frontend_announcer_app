@@ -64,7 +64,6 @@ module.exports = {
         }
       ],
       "./withNetworkSecurityConfig",
-      "react-native-track-player"
     ],
 
     extra: {
