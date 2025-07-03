@@ -1185,6 +1185,7 @@
 
 // app/(app)/radio.tsx - Enhanced with detailed logging
 import React, { useState, useEffect, useRef } from 'react';
+import { debugLog } from '../../src/utils/debugLogger';
 import {
   View,
   Text,
@@ -1230,23 +1231,26 @@ const RADIO_STREAMS = [
   },
 ];
 
-// Enhanced logging utility
 const Logger = {
   info: (tag: string, message: string, data?: any) => {
     const timestamp = new Date().toISOString();
-    console.log(`🔵 [${timestamp}] [${tag}] ${message}`, data ? JSON.stringify(data, null, 2) : '');
+    const fullMessage = `🔵 [${timestamp}] [${tag}] ${message}`;
+    debugLog.info(fullMessage, data);
   },
   error: (tag: string, message: string, error?: any) => {
     const timestamp = new Date().toISOString();
-    console.error(`🔴 [${timestamp}] [${tag}] ${message}`, error);
+    const fullMessage = `🔴 [${timestamp}] [${tag}] ${message}`;
+    debugLog.error(fullMessage, error);
   },
   warn: (tag: string, message: string, data?: any) => {
     const timestamp = new Date().toISOString();
-    console.warn(`🟡 [${timestamp}] [${tag}] ${message}`, data);
+    const fullMessage = `🟡 [${timestamp}] [${tag}] ${message}`;
+    debugLog.warn(fullMessage, data);
   },
   debug: (tag: string, message: string, data?: any) => {
     const timestamp = new Date().toISOString();
-    console.log(`🟣 [${timestamp}] [${tag}] ${message}`, data ? JSON.stringify(data, null, 2) : '');
+    const fullMessage = `🟣 [${timestamp}] [${tag}] ${message}`;
+    debugLog.info(fullMessage, data);
   }
 };
 
