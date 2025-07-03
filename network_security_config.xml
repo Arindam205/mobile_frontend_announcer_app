@@ -1,14 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+  <!-- Allow cleartext traffic for specific domains only -->
   <domain-config cleartextTrafficPermitted="true">
-    <!-- Your server IP for HTTP traffic -->
+    <!-- Akashvani streaming domains (these actually use HTTPS) -->
+    <domain includeSubdomains="true">air.pc.cdn.bitgravity.com</domain>
+    <domain includeSubdomains="true">bitgravity.com</domain>
+    <domain includeSubdomains="true">akashvani.gov.in</domain>
+    
+    <!-- Your HTTP API server -->
     <domain includeSubdomains="false">117.247.79.184</domain>
   </domain-config>
-
-  <!-- Optional: Allow HTTP for local development -->
+  
+  <!-- Development domains -->
   <domain-config cleartextTrafficPermitted="true">
     <domain includeSubdomains="true">localhost</domain>
-    <domain includeSubdomains="true">10.0.0.0</domain>
+    <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android emulator host -->
     <domain includeSubdomains="true">192.168.0.0</domain>
+    <domain includeSubdomains="true">172.16.0.0</domain>
   </domain-config>
+  
+  <!-- Default: Block cleartext for all other domains -->
+  <base-config cleartextTrafficPermitted="false">
+    <trust-anchors>
+      <certificates src="system"/>
+    </trust-anchors>
+  </base-config>
 </network-security-config>
