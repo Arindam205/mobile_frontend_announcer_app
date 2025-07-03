@@ -1,28 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-  <!-- Allow cleartext traffic for specific domains only -->
+  <!-- Production API server (HTTP) -->
   <domain-config cleartextTrafficPermitted="true">
-    <!-- Akashvani streaming domains (these actually use HTTPS) -->
-    <domain includeSubdomains="true">air.pc.cdn.bitgravity.com</domain>
-    <domain includeSubdomains="true">bitgravity.com</domain>
-    <domain includeSubdomains="true">akashvani.gov.in</domain>
-    
-    <!-- Your HTTP API server -->
     <domain includeSubdomains="false">117.247.79.184</domain>
   </domain-config>
   
-  <!-- Development domains -->
-  <domain-config cleartextTrafficPermitted="true">
-    <domain includeSubdomains="true">localhost</domain>
-    <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android emulator host -->
-    <domain includeSubdomains="true">192.168.0.0</domain>
-    <domain includeSubdomains="true">172.16.0.0</domain>
+  <!-- Streaming domains (HTTPS only - more secure) -->
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="true">air.pc.cdn.bitgravity.com</domain>
+    <domain includeSubdomains="true">bitgravity.com</domain>
+    <domain includeSubdomains="true">akashvani.gov.in</domain>
+    <domain includeSubdomains="true">cdn.bitgravity.com</domain>
+    <!-- Add other trusted radio streaming domains -->
+    <domain includeSubdomains="true">icecast.akashvani.gov.in</domain>
   </domain-config>
   
-  <!-- Default: Block cleartext for all other domains -->
+  <!-- Development domains (for local testing) -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="true">localhost</domain>
+    <domain includeSubdomains="true">10.0.0.0</domain>
+    <domain includeSubdomains="true">192.168.0.0</domain>
+    <domain includeSubdomains="true">172.16.0.0</domain>
+    <domain includeSubdomains="true">127.0.0.1</domain>
+    <!-- Common development IPs -->
+    <domain includeSubdomains="false">10.0.2.2</domain> <!-- Android emulator -->
+    <domain includeSubdomains="false">192.168.1.0</domain> <!-- Common router range -->
+  </domain-config>
+  
+  <!-- Default: Block cleartext for all other domains (security) -->
   <base-config cleartextTrafficPermitted="false">
     <trust-anchors>
       <certificates src="system"/>
+      <!-- Add custom CA certificates if needed -->
     </trust-anchors>
   </base-config>
 </network-security-config>
