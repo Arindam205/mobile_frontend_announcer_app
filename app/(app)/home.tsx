@@ -376,6 +376,7 @@
 // });
 
 
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   View, 
@@ -388,6 +389,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  GestureResponderEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radio, ChevronRight, Play, Pause, WifiOff, AlertCircle } from 'lucide-react-native';
@@ -413,7 +415,7 @@ interface Channel {
   channelName: string;
   frequencyDetails: string;
   description: string;
-  streamKey: string; // New streaming URL field
+  streamKey?: string; // Optional streaming URL field
 }
 
 interface Language {
@@ -522,7 +524,7 @@ const ErrorToast = ({
   );
 };
 
-// Enhanced Channel Card with Play/Pause Button
+// Enhanced Channel Card with Play/Pause Button AND Navigation (Preserving Original Design)
 const EnhancedChannelCard = ({ 
   channel, 
   index, 
@@ -591,36 +593,11 @@ const EnhancedChannelCard = ({
   ];
   const gradientColors = gradients[index % gradients.length];
 
-  const handlePress = () => {
+  // Handle play/pause button press (only for streaming)
+  const handlePlayButtonPress = () => {
     if (channel.streamKey) {
       onStreamToggle(channel);
-    } else {
-      onChannelSelect(channel, stationName);
     }
-  };
-
-  const renderPlayButton = () => {
-    if (isCurrentlyBuffering) {
-      return (
-        <View style={styles.playButtonContainer}>
-          <ActivityIndicator size={24} color="white" />
-        </View>
-      );
-    }
-
-    return (
-      <TouchableOpacity 
-        style={styles.playButtonContainer}
-        onPress={handlePress}
-        activeOpacity={0.8}
-      >
-        {isCurrentlyPlaying ? (
-          <Pause size={24} color="white" fill="white" />
-        ) : (
-          <Play size={24} color="white" fill="white" />
-        )}
-      </TouchableOpacity>
-    );
   };
 
   return (
@@ -632,59 +609,68 @@ const EnhancedChannelCard = ({
         },
       ]}
     >
-      <LinearGradient
-        colors={gradientColors}
-        style={styles.gradientBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      {/* ORIGINAL PATTERN: Entire card is touchable for navigation */}
+      <TouchableOpacity 
+        key={channel.channelId}
+        onPress={() => onChannelSelect(channel, stationName)}
+        style={styles.cardTouchable}
+        activeOpacity={0.8}
       >
-        <View style={styles.channelContent}>
-          <View style={styles.channelInfo}>
-            <Animated.View
-              style={[
-                styles.radioIconContainer,
-                {
-                  transform: [
-                    {
-                      rotate: rotateAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0deg', '360deg'],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Radio size={24} color="rgba(255,255,255,0.8)" />
-            </Animated.View>
-            <View style={styles.channelTextInfo}>
+        <LinearGradient
+          colors={gradientColors}
+          style={styles.gradientBackground}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.channelContent}>
+            <View style={styles.channelInfo}>
+              <Animated.View
+                style={[
+                  styles.radioIconContainer,
+                  {
+                    transform: [
+                      {
+                        rotate: rotateAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '360deg'],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Radio size={24} color="rgba(255,255,255,0.8)" />
+              </Animated.View>
               <Text style={styles.channelName}>{channel.channelName}</Text>
-              <Text style={styles.channelFrequency}>{channel.frequencyDetails}</Text>
-              {!channel.streamKey && (
-                <Text style={styles.noStreamText}>Audio not available</Text>
-              )}
+            </View>
+            <Text style={styles.channelFrequency}>{channel.frequencyDetails}</Text>
+            <View style={styles.stationBadge}>
+              <Text style={styles.stationName}>{stationName}</Text>
             </View>
           </View>
           
-          <View style={styles.stationBadge}>
-            <Text style={styles.stationName}>{stationName}</Text>
+          <View style={styles.actionContainer}>
+            {/* Show play button OR chevron based on streamKey */}
+            {channel.streamKey ? (
+              <TouchableOpacity 
+                style={styles.playButtonContainer}
+                onPress={handlePlayButtonPress}
+                activeOpacity={0.8}
+              >
+                {isCurrentlyBuffering ? (
+                  <ActivityIndicator size={24} color="white" />
+                ) : isCurrentlyPlaying ? (
+                  <Pause size={24} color="white" fill="white" />
+                ) : (
+                  <Play size={24} color="white" fill="white" />
+                )}
+              </TouchableOpacity>
+            ) : (
+              <ChevronRight size={24} color="white" style={styles.chevronIcon} />
+            )}
           </View>
-        </View>
-        
-        <View style={styles.actionContainer}>
-          {channel.streamKey ? (
-            renderPlayButton()
-          ) : (
-            <TouchableOpacity 
-              style={styles.infoButtonContainer}
-              onPress={() => onChannelSelect(channel, stationName)}
-              activeOpacity={0.8}
-            >
-              <ChevronRight size={24} color="white" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -931,8 +917,12 @@ export default function HomeScreen() {
     }
   };
   
+  // Handle channel selection for rating (original navigation logic)
   const handleChannelSelect = (channel: Channel, stationName: string) => {
+    // Set selected channel data in context (preserving original logic)
     setSelectedChannelData(channel, stationName);
+    
+    // Navigate to rating selection screen (preserving original logic)
     router.push('/(app)/rating-selection');
   };
 
@@ -986,8 +976,8 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.heading}>Live Radio Streams</Text>
-        <Text style={styles.subheading}>Tap play to stream • Tap rate to evaluate</Text>
+        <Text style={styles.heading}>Live Radio & Ratings</Text>
+        <Text style={styles.subheading}>Stream live • Rate content • Tap cards to evaluate</Text>
 
         {stationData?.channels.length ? (
           <View style={styles.channelsContainer}>
@@ -1089,11 +1079,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  cardTouchable: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
   gradientBackground: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    minHeight: 120,
+    height: 120,
   },
   channelContent: {
     flex: 1,
@@ -1101,7 +1095,7 @@ const styles = StyleSheet.create({
   channelInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   radioIconContainer: {
     marginRight: 12,
@@ -1113,11 +1107,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 4,
+    marginLeft: 12,
   },
   channelFrequency: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
+    marginLeft: 36,
+    marginTop: 4,
   },
   noStreamText: {
     fontSize: 11,
@@ -1131,6 +1127,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 6,
     alignSelf: 'flex-start',
+    marginTop: 12,
   },
   stationName: {
     fontSize: 13,
@@ -1151,13 +1148,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.4)',
   },
-  infoButtonContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  chevronIcon: {
+    marginLeft: 5,
   },
   errorToast: {
     position: 'absolute',

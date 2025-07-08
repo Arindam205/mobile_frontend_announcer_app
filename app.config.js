@@ -30,8 +30,10 @@
 //         "WAKE_LOCK",
 //         "MODIFY_AUDIO_SETTINGS",
 //         "FOREGROUND_SERVICE",
+//         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
 //         "RECEIVE_BOOT_COMPLETED",
-//         "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+//         "ACCESS_BACKGROUND_APP_REFRESH_SETTINGS", // For persistent background service
+//         "SYSTEM_ALERT_WINDOW" // For persistent notifications
 //       ],
 //       adaptiveIcon: {
 //         foregroundImage: "./assets/images/AkashvaniLogo1.png",
@@ -104,8 +106,8 @@ module.exports = {
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "RECEIVE_BOOT_COMPLETED",
-        "ACCESS_BACKGROUND_APP_REFRESH_SETTINGS", // For persistent background service
-        "SYSTEM_ALERT_WINDOW" // For persistent notifications
+        "ACCESS_BACKGROUND_APP_REFRESH_SETTINGS",
+        "SYSTEM_ALERT_WINDOW"
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/images/AkashvaniLogo1.png",
@@ -135,11 +137,8 @@ module.exports = {
       eas: {
         projectId: "4321e795-7072-4931-8e31-bc4a4a05a129"
       },
-      apiUrl: process.env.API_URL || "http://117.247.79.184:8081",
-      radioStreams: {
-        primary: "https://air.pc.cdn.bitgravity.com/air/live/pbaudio130/playlist.m3u8",
-        backup: "https://air.pc.cdn.bitgravity.com/air/live/pbaudio130/chunklist.m3u8"
-      }
+      apiUrl: process.env.API_URL || "http://117.247.79.184:8081"
+      // Removed radioStreams section - now using dynamic streamKey from API
     }
   }
 };

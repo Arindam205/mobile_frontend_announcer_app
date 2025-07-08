@@ -66,15 +66,7 @@
 //           }} 
 //         />
         
-//         <Tabs.Screen 
-//           name="radio" 
-//           options={{ 
-//             title: 'Radio', 
-//             tabBarIcon: ({ size, color }) => (
-//               <Ionicons name="radio" size={size} color={color} />
-//             ),
-//           }} 
-//         />
+//         {/* Radio tab removed - streaming is now integrated into home */}
         
 //         <Tabs.Screen 
 //           name="profile" 
@@ -86,7 +78,7 @@
 //           }} 
 //         />
         
-//         {/* Simply use tabBarButton to hide the rating-selection screen from tab bar */}
+//         {/* Hide all rating and program screens from tab bar */}
 //         <Tabs.Screen 
 //           name="rating-selection"
 //           options={{
@@ -94,7 +86,6 @@
 //           }}
 //         />
 
-//         {/* Hide the rating screens from tab bar */}
 //         <Tabs.Screen 
 //           name="rate-announcer"
 //           options={{
@@ -102,7 +93,6 @@
 //           }} 
 //         />
         
-//         {/* Hide the program selection screen from tab bar */}
 //         <Tabs.Screen 
 //           name="program-selection"
 //           options={{
@@ -110,9 +100,16 @@
 //           }} 
 //         />
         
-//         {/* Hide the rate-program screen from tab bar */}
 //         <Tabs.Screen 
 //           name="rate-program"
+//           options={{
+//             href: null
+//           }} 
+//         />
+
+//         {/* Keep radio file but hide from tabs for backward compatibility */}
+//         <Tabs.Screen 
+//           name="radio"
 //           options={{
 //             href: null
 //           }} 
@@ -121,7 +118,6 @@
 //     </ChannelProvider>
 //   );
 // }
-
 
 import { Tabs } from 'expo-router'; 
 import { useAuth } from '../../src/context/AuthContext'; 
@@ -181,6 +177,7 @@ export default function AppLayout() {
           },
         }}
       >
+        {/* Main Home Tab - Now includes streaming functionality */}
         <Tabs.Screen 
           name="home" 
           options={{ 
@@ -191,8 +188,7 @@ export default function AppLayout() {
           }} 
         />
         
-        {/* Radio tab removed - streaming is now integrated into home */}
-        
+        {/* Profile Tab */}
         <Tabs.Screen 
           name="profile" 
           options={{ 
@@ -203,42 +199,41 @@ export default function AppLayout() {
           }} 
         />
         
-        {/* Hide all rating and program screens from tab bar */}
+        {/* Hidden Screens - Not visible in tab bar but accessible via navigation */}
         <Tabs.Screen 
           name="rating-selection"
           options={{
-            href: null
+            href: null // Hidden from tab bar
           }}
         />
 
         <Tabs.Screen 
           name="rate-announcer"
           options={{
-            href: null
+            href: null // Hidden from tab bar
           }} 
         />
         
         <Tabs.Screen 
           name="program-selection"
           options={{
-            href: null
+            href: null // Hidden from tab bar
           }} 
         />
         
         <Tabs.Screen 
           name="rate-program"
           options={{
-            href: null
+            href: null // Hidden from tab bar
           }} 
         />
 
-        {/* Keep radio file but hide from tabs for backward compatibility */}
-        <Tabs.Screen 
-          name="radio"
-          options={{
-            href: null
-          }} 
-        />
+        {/* 
+          REMOVED: radio.tsx tab 
+          Since streaming is now integrated into the home screen,
+          the separate radio page is no longer needed.
+          The radio.tsx file should be deleted from the project.
+        */}
       </Tabs>
     </ChannelProvider>
   );
