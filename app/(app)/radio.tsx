@@ -35,6 +35,8 @@ const resolveRedirectedUrl = async (url: string): Promise<string> => {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Connection': 'keep-alive',
+        'Referer': 'https://akashvani.gov.in/',
+        'Origin': 'https://akashvani.gov.in',
       }
     });
 
@@ -96,22 +98,25 @@ const setupPlayer = async (): Promise<boolean> => {
       });
     }
 
-    // Configure player options with enhanced capabilities
+    // Configure player options with ONLY Play/Pause capabilities (NO STOP)
     await TrackPlayer.updateOptions({
       capabilities: [
         Capability.Play,
         Capability.Pause,
+        // Remove Capability.Stop to avoid duplicate stop buttons
       ],
       compactCapabilities: [
         Capability.Play,
         Capability.Pause,
+        // Remove Capability.Stop to avoid duplicate stop buttons
       ],
       notificationCapabilities: [
         Capability.Play,
         Capability.Pause,
+        // Remove Capability.Stop to avoid duplicate stop buttons
       ],
       android: {
-        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification, // Remove notification when app is killed
         alwaysPauseOnInterruption: false,
       },
       // Enhanced notification styling
@@ -325,13 +330,11 @@ export default function RadioScreen() {
     if (event.type === Event.PlaybackState) {
       console.log('[RadioScreen] 🎵 Playback State Changed:', event.state);
       
-      // Update loading state
-      if (event.state === State.Playing || event.state === State.Paused) {
-        setIsLoading(false);
-      }
+      // IMPORTANT FIX: Always clear loading state on any state change
+      setIsLoading(false);
       
       // Track when stream was paused for fresh content logic
-      if (event.state === State.Paused) {
+      if (event.state === State.Paused || event.state === State.Stopped) {
         setLastStopTime(Date.now());
       }
 
@@ -370,11 +373,14 @@ export default function RadioScreen() {
     // Cleanup on unmount
     return () => {
       console.log('[RadioScreen] Component unmounting...');
-      // Don't reset here - let service handle background playback
+      // Call the service control to properly stop and clear controls
+      if ((global as any).trackPlayerServiceControls?.stopFromApp) {
+        (global as any).trackPlayerServiceControls.stopFromApp();
+      }
     };
   }, []);
 
-  // Enhanced playback toggle with redirect resolution and 10-second rule
+  // FIXED: Enhanced playback toggle with proper loading state management
   const togglePlayback = async () => {
     if (!isPlayerReady) {
       Alert.alert('Error', 'Player not ready yet');
@@ -396,9 +402,20 @@ export default function RadioScreen() {
       console.log('[RadioScreen] Current state:', currentState);
 
       if (currentState.state === State.Playing) {
-        console.log('[RadioScreen] ⏸️ Pausing stream (keeping notification)...');
-        await TrackPlayer.pause();
-        console.log('[RadioScreen] ✅ Stream paused, notification preserved');
+        console.log('[RadioScreen] ⏸️ Stopping stream from app (should clear notification)...');
+        
+        // Call the service control to properly stop and clear controls when stopped from app
+        if ((global as any).trackPlayerServiceControls?.stopFromApp) {
+          await (global as any).trackPlayerServiceControls.stopFromApp();
+        } else {
+          // Fallback if service controls are not available
+          await TrackPlayer.stop();
+          await TrackPlayer.reset();
+        }
+        
+        // IMPORTANT FIX: Immediately clear loading state after stopping
+        setIsLoading(false);
+        console.log('[RadioScreen] ✅ Stream stopped from app, notification should be cleared');
         
       } else {
         console.log('[RadioScreen] ▶️ Starting stream...');
@@ -444,7 +461,15 @@ export default function RadioScreen() {
           }
         }
         
-        await TrackPlayer.play();
+        // Call the service control to start stream (this will show notification)
+        if ((global as any).trackPlayerServiceControls?.startStream) {
+          await (global as any).trackPlayerServiceControls.startStream();
+        } else {
+          // Fallback if service controls are not available
+          await TrackPlayer.play();
+        }
+        
+        // Loading state will be cleared by the playback state event listener
         console.log('[RadioScreen] ✅ Playback started');
       }
     } catch (error) {
@@ -487,6 +512,7 @@ export default function RadioScreen() {
       case State.Playing:
         return '🔴 Live - Now Playing';
       case State.Paused:
+      case State.Stopped:
         return '⏹️ Stopped';
       case State.Buffering:
         return '⏳ Buffering...';
