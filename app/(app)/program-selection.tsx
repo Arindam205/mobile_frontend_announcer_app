@@ -449,7 +449,7 @@ const fetchPrograms = async (page: number = 0, refresh: boolean = false) => {
     Keyboard.dismiss();
     
     // Navigate directly to rate-program page with the necessary parameters
-    router.push({
+    router.replace({
       pathname: '/(app)/rate-program',
       params: {
         programId: program.id.toString(),

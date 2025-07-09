@@ -409,9 +409,9 @@ export default function RateProgramScreen() {
   // Handle back button presses - CORRECTED VERSION
   useFocusEffect(
     useCallback(() => {
-      const onBackPress = () => {
+      const onBackPress = () => {onBackPress 
         // Navigate back to program-selection with the required parameters
-        router.push({
+        router.replace({
           pathname: '/(app)/program-selection',
           params: {
             languageId,
@@ -603,7 +603,7 @@ const handleSubmit = async () => {
             text: 'OK', 
             onPress: () => {
               setShowSuccess(false);
-              router.push({
+              router.replace({
                 pathname: '/(app)/program-selection',
                 params: {
                   languageId,
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   programName: {
-    fontSize: 20,
+    fontSize: 13,
     fontWeight: '600',
     color: 'white',
   },

@@ -416,7 +416,7 @@ const handleSubmit = async () => {
   
   // Navigate back to rating selection screen
   const handleGoBack = () => {
-    router.replace('/(app)/rating-selection'); // This will go back to the rating-selection screen
+    router.replace('/(app)/rating-selection'); // This will gouseFocusEffectback to the rating-selection screen
   };
 
   // Calculate dynamic button color based on state

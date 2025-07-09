@@ -26,6 +26,8 @@ import ErrorBoundary from '../../components/ErrorBoundary';
 import { api } from '../../src/api/config';
 import * as SecureStore from 'expo-secure-store';
 import { ReactNode } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 // Interfaces
 interface Channel {
@@ -311,32 +313,35 @@ const RatingSelectionScreen: React.FC = () => {
     };
   }, [selectedChannel]);
 
-  // Add back button handler for hardware back button
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
+  // FIXED: Proper back button handling
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        console.log('[RatingSelection] Back button pressed');
+        
         if (showLanguageModal) {
           setShowLanguageModal(false);
-          return true;
-        }
-        if (selectedOption) {
           setSelectedOption(null);
           return true;
         }
-        handleBackPress();
+        // Navigate back to home using router.back() to maintain proper navigation stack
+        router.back();
         return true;
-      }
-    );
+      };
 
-    return () => backHandler.remove();
-  }, [showLanguageModal, selectedOption]);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      
+      return () => {
+        backHandler.remove();
+      };
+    }, [showLanguageModal, selectedOption])
+  );
   
   // Navigate back to home screen
   const handleBackPress = () => {
     try {
       console.log("[RatingSelection] Back button pressed, navigating to home");
-      router.replace("/(app)/home");
+      router.back();
     } catch (error) {
       console.error("[RatingSelection] Error navigating back:", error);
       // Fallback
@@ -388,7 +393,7 @@ const RatingSelectionScreen: React.FC = () => {
       console.log(`[RatingSelection] Selected ${language.languageName} language for announcer rating`);
       
       // Navigate to announcer rating page
-      router.push({
+      router.replace({
         pathname: "/(app)/rate-announcer",
         params: {
           languageId: language.languageId,
@@ -399,7 +404,7 @@ const RatingSelectionScreen: React.FC = () => {
       console.log(`[RatingSelection] Selected ${language.languageName} language for program rating`);
       
       // Navigate to program selection page
-      router.push({
+      router.replace({
         pathname: "/(app)/program-selection",
         params: {
           languageId: language.languageId,
@@ -455,9 +460,7 @@ const RatingSelectionScreen: React.FC = () => {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>{selectedChannel.channelName || 'Channel'}</Text>
             <View style={styles.frequencyContainer}>
-              {/* <Text style={styles.frequencyText}>{frequencyValue}</Text> */}
               <Text style={styles.frequencyText}>{selectedChannel.frequencyDetails?.replace(/\b(AM|FM)\s?/gi, '')}</Text>
-              {/* <Text style={styles.mhzText}>MHz</Text> */}
             </View>
             {stationName ? (
               <Text style={styles.stationName}>{stationName}</Text>
@@ -576,16 +579,9 @@ const RatingSelectionScreen: React.FC = () => {
                 <View style={styles.modalContainer}>
                   {/* Header */}
                   <View style={styles.modalHeader}>
-                    {/* <View style={styles.modalHeaderSpacer} /> */}
                     <Text style={styles.modalTitle}>
                       {`Select Language to ${selectedOption?.title}`}
                     </Text>
-                    {/* <TouchableOpacity
-                      onPress={handleCloseLanguageModal}
-                      style={styles.modalCloseButton}
-                    >
-                      <X size={24} color="#6B7280" />
-                    </TouchableOpacity> */}
                   </View>
                   
                   {/* Language list */}
@@ -877,33 +873,18 @@ const styles = StyleSheet.create({
     shadowRadius: 20
   },
   modalHeader: {
-    // flexDirection: 'row',
-    // justifyContent: 'space-between',
-    // alignItems: 'center',
-    // borderBottomWidth: 1,
-    // borderBottomColor: '#E5E7EB',
-    // padding: 16
     justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     padding: 16
   },
-  // modalHeaderSpacer: {
-  //   width: 40
-  // },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1F2937',
     textAlign: 'center'
   },
-  // modalCloseButton: {
-  //   width: 40,
-  //   height: 40,
-  //   justifyContent: 'center',
-  //   alignItems: 'center'
-  // },
   loadingLanguagesContainer: {
     padding: 30,
     alignItems: 'center',

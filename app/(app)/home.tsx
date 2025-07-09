@@ -28,6 +28,8 @@ import TrackPlayer, {
 } from 'react-native-track-player';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 // Interfaces
 interface Channel {
@@ -139,60 +141,49 @@ const EnhancedChannelCard = ({
               )}
             </View>
           </View>
-          {/* <View style={styles.actionContainer}>
-            {channel.streamKey ? (
-              <Pressable style={styles.playButtonContainer} onPress={handlePlayButtonPress}
-                android_ripple={{ color: 'rgba(255, 255, 255, 0.2)', radius: 28 }}>
-                {isCurrentlyBuffering ? <ActivityIndicator size={24} color="white" /> :
-                  isCurrentlyPlaying ? <Pause size={24} color="white" fill="white" /> :
-                    <Play size={24} color="white" fill="white" />}
-              </Pressable>
-            ) : <ChevronRight size={24} color="white" style={styles.chevronIcon} />}
-          </View> */}
           <View style={styles.actionContainer}>
-  {channel.streamKey ? (
-    <Pressable
-      style={styles.playButtonContainer}
-      onPress={handlePlayButtonPress}
-      android_ripple={{ color: 'rgba(59,130,246,0.14)', radius: 32 }}
-    >
-      {/* Gradient Layer */}
-      <LinearGradient
-        colors={['#2563eb', '#60a5fa']}
-        start={{ x: 0.25, y: 0.2 }}
-        end={{ x: 0.75, y: 1 }}
-        style={[
-          StyleSheet.absoluteFill,
-          {
-            borderRadius: 28,
-            opacity: 0.95,
-          },
-        ]}
-      />
-      {/* Gloss/Highlight */}
-      <View style={{
-        position: 'absolute',
-        top: 6, left: 10, right: 10,
-        height: 18,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.33)',
-        opacity: 0.7,
-        zIndex: 2,
-      }}/>
-      {/* Actual Icon/Loader */}
-      {isCurrentlyBuffering ? (
-        <ActivityIndicator size={24} color="#fff" />
-      ) : isCurrentlyPlaying ? (
-        <Pause size={28} color="white" fill="white" style={{ zIndex: 3 }} />
-      ) : (
-        <Play size={28} color="white" fill="white" style={{ zIndex: 3 }} />
-      )}
-    </Pressable>
-     ) : (
-    <ChevronRight size={24} color="white" style={styles.chevronIcon} />
-    )}
-    </View>
-
+            {channel.streamKey ? (
+              <Pressable
+                style={styles.playButtonContainer}
+                onPress={handlePlayButtonPress}
+                android_ripple={{ color: 'rgba(59,130,246,0.14)', radius: 32 }}
+              >
+                {/* Gradient Layer */}
+                <LinearGradient
+                  colors={['#2563eb', '#60a5fa']}
+                  start={{ x: 0.25, y: 0.2 }}
+                  end={{ x: 0.75, y: 1 }}
+                  style={[
+                    StyleSheet.absoluteFill,
+                    {
+                      borderRadius: 28,
+                      opacity: 0.95,
+                    },
+                  ]}
+                />
+                {/* Gloss/Highlight */}
+                <View style={{
+                  position: 'absolute',
+                  top: 6, left: 10, right: 10,
+                  height: 18,
+                  borderRadius: 12,
+                  backgroundColor: 'rgba(255,255,255,0.33)',
+                  opacity: 0.7,
+                  zIndex: 2,
+                }}/>
+                {/* Actual Icon/Loader */}
+                {isCurrentlyBuffering ? (
+                  <ActivityIndicator size={24} color="#fff" />
+                ) : isCurrentlyPlaying ? (
+                  <Pause size={28} color="white" fill="white" style={{ zIndex: 3 }} />
+                ) : (
+                  <Play size={28} color="white" fill="white" style={{ zIndex: 3 }} />
+                )}
+              </Pressable>
+            ) : (
+              <ChevronRight size={24} color="white" style={styles.chevronIcon} />
+            )}
+          </View>
         </LinearGradient>
       </TouchableOpacity>
     </Animated.View>
@@ -221,13 +212,27 @@ export default function HomeScreen() {
     });
     return () => unsubscribe();
   }, []);
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (Platform.OS === 'android') { BackHandler.exitApp(); }
-      return true;
-    });
-    return () => backHandler.remove();
-  }, []);
+
+  // FIXED: Proper back button handling for home screen
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        console.log('[HomeScreen] Back button pressed on home screen');
+        
+        // Always exit the app from home screen, regardless of navigation history
+        if (Platform.OS === 'android') {
+          BackHandler.exitApp();
+        }
+        return true; // Prevent default back behavior
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      
+      return () => {
+        backHandler.remove();
+      };
+    }, [])
+  );
 
   useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], async (event) => {
     if (event.type === Event.PlaybackError) {
@@ -427,11 +432,13 @@ export default function HomeScreen() {
     } finally { setLoading(false); }
   };
 
-  // Navigation for channel rating
+  // FIXED: Navigation for channel rating - Use push instead of replace
   const handleChannelSelect = (channel: Channel, stationName: string) => {
     setSelectedChannelData(channel, stationName);
+    // Use push instead of replace to maintain proper navigation stack
     router.push('/(app)/rating-selection');
   };
+  
   useEffect(() => { fetchChannels(); }, []);
 
   const isChannelPlaying = (channelId: number) => currentPlayingChannel === channelId && playbackState?.state === State.Playing;
