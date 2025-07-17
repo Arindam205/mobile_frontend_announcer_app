@@ -126,7 +126,7 @@ const playChannelById = async (channelId: number | null): Promise<boolean> => {
     await TrackPlayer.add({
       id: `channel-${channelId}-${Date.now()}`,
       url: freshUrl,
-      title: 'AIR Radio',
+      title: 'Akashvani Radio',
       artist: 'All India Radio',
       artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
       type: TrackType.HLS,

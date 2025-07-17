@@ -339,7 +339,7 @@ export default function HomeScreen() {
         id: `channel-${channel.channelId}-${Date.now()}`,
         url: freshStreamUrl,
         title: channel.channelName,
-        artist: stationData?.stationName || 'AIR Radio',
+        artist: stationData?.stationName || 'Akashvani Radio',
         artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
         type: TrackType.HLS, isLiveStream: true, duration: 0,
         headers: {
@@ -377,7 +377,7 @@ export default function HomeScreen() {
         id: `channel-${lastChannel.channelId}-${Date.now()}`,
         url: freshStreamUrl,
         title: lastChannel.channelName,
-        artist: stationData?.stationName || 'AIR Radio',
+        artist: stationData?.stationName || 'Akashvani Radio',
         artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
         type: TrackType.HLS, isLiveStream: true, duration: 0,
         headers: {
