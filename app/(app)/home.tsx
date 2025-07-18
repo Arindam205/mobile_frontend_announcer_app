@@ -332,29 +332,33 @@ export default function HomeScreen() {
       setCurrentPlayingChannel(channel.channelId);
       await TrackPlayer.stop();
       await TrackPlayer.reset();
-      // Always create fresh URL
-      const freshStreamUrl = await createFreshStreamUrl(channel.streamKey);
-      await saveLastPlayedChannel(channel.channelId); // Persist id only!
-      await TrackPlayer.add({
-        id: `channel-${channel.channelId}-${Date.now()}`,
-        url: freshStreamUrl,
-        title: channel.channelName,
-        artist: stationData?.stationName || 'Akashvani Radio',
-        artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
-        type: TrackType.HLS, isLiveStream: true, duration: 0,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-          'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Referer': 'https://akashvani.gov.in/',
-          'Origin': 'https://akashvani.gov.in',
-        },
-      });
+      
+      // Save channelId to storage
+      await saveLastPlayedChannel(channel.channelId);
+      
+      // Use the enhanced startStream function with channel info
       if ((global as any).trackPlayerServiceControls?.startStream) {
         await (global as any).trackPlayerServiceControls.startStream(channel.channelId, channel.streamKey);
       } else {
+        // Fallback to manual track creation
+        const freshStreamUrl = await createFreshStreamUrl(channel.streamKey);
+        await TrackPlayer.add({
+          id: `channel-${channel.channelId}-${Date.now()}`,
+          url: freshStreamUrl,
+          title: channel.channelName, // Use actual channel name
+          artist: stationData?.stationName || 'All India Radio', // Use actual station name
+          artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
+          type: TrackType.HLS, isLiveStream: true, duration: 0,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+            'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Referer': 'https://akashvani.gov.in/',
+            'Origin': 'https://akashvani.gov.in',
+          },
+        });
         await TrackPlayer.play();
       }
     } catch (error) {
@@ -372,24 +376,31 @@ export default function HomeScreen() {
     try {
       setCurrentPlayingChannel(lastChannel.channelId);
       setIsBuffering(true);
-      const freshStreamUrl = await createFreshStreamUrl(lastChannel.streamKey);
-      await TrackPlayer.add({
-        id: `channel-${lastChannel.channelId}-${Date.now()}`,
-        url: freshStreamUrl,
-        title: lastChannel.channelName,
-        artist: stationData?.stationName || 'Akashvani Radio',
-        artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
-        type: TrackType.HLS, isLiveStream: true, duration: 0,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-          'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Referer': 'https://akashvani.gov.in/',
-          'Origin': 'https://akashvani.gov.in',
-        },
-      });
+      
+      // Use the enhanced startStream with proper channel info
+      if ((global as any).trackPlayerServiceControls?.startStream) {
+        await (global as any).trackPlayerServiceControls.startStream(lastChannel.channelId, lastChannel.streamKey);
+      } else {
+        // Fallback
+        const freshUrl = await createFreshStreamUrl(lastChannel.streamKey);
+        await TrackPlayer.add({
+          id: `channel-${lastChannel.channelId}-${Date.now()}`,
+          url: freshUrl,
+          title: lastChannel.channelName, // Use actual channel name
+          artist: stationData?.stationName || 'All India Radio', // Use actual station name
+          artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
+          type: TrackType.HLS, isLiveStream: true, duration: 0,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+            'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Referer': 'https://akashvani.gov.in/',
+            'Origin': 'https://akashvani.gov.in',
+          },
+        });
+      }
       return true;
     } catch (error) {
       setIsBuffering(false);
@@ -402,7 +413,14 @@ export default function HomeScreen() {
   useEffect(() => {
     if ((global as any).trackPlayerServiceControls) {
       const originalStartStream = (global as any).trackPlayerServiceControls.startStream;
-      (global as any).trackPlayerServiceControls.startStream = async () => {
+      (global as any).trackPlayerServiceControls.startStream = async (channelId?: number, streamKey?: string) => {
+        // If channelId and streamKey provided, use them directly
+        if (channelId && streamKey) {
+          await originalStartStream(channelId, streamKey);
+          return;
+        }
+        
+        // Otherwise check if we need to resume from queue or fetch last played
         const queue = await TrackPlayer.getQueue();
         if (queue.length === 0) {
           const resumed = await resumeLastPlayedChannel();
@@ -422,7 +440,15 @@ export default function HomeScreen() {
       setLoading(true); setError(null);
       const response = await api.get('/api/stations/my-channels');
       if (response.status >= 200 && response.status < 300){
-        (global as any).appChannels = response.data.channels;
+        // IMPORTANT: Set global channel data with enhanced info for TrackPlayerService
+        const enhancedChannels = response.data.channels.map((channel: Channel) => ({
+          ...channel,
+          stationName: response.data.stationName // Add station name to each channel
+        }));
+        
+        (global as any).appChannels = enhancedChannels;
+        (global as any).appStationName = response.data.stationName; // Also set global station name
+        
         setStationData(response.data);
       } 
       else if (response.status >= 400 && response.status < 500) setError(response.data?.message || 'Failed to load channels');

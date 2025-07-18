@@ -65,19 +65,47 @@ const checkNetworkConnectivity = async (): Promise<boolean> => {
   }
 };
 
-// For all cases where you need the current streamKey, **get it from global.appChannels** by channelId
-const getStreamKeyForChannel = async (channelId: number | null): Promise<string | null> => {
+// Get channel info by channelId (including name and station)
+const getChannelInfo = async (channelId: number | null): Promise<{streamKey: string | null, channelName: string, stationName: string}> => {
   try {
-    // Make sure your app (HomeScreen) sets this global object on mount/update!
-    // Example:
-    // (global as any).appChannels = stationData?.channels;
-    if (!channelId || !(global as any).appChannels) return null;
-    const channelList = (global as any).appChannels as Array<{ channelId: number, streamKey?: string }>;
+    if (!channelId || !(global as any).appChannels) {
+      return { streamKey: null, channelName: 'Akashvani Radio', stationName: 'All India Radio' };
+    }
+    
+    const channelList = (global as any).appChannels as Array<{ 
+      channelId: number, 
+      streamKey?: string, 
+      channelName?: string,
+      stationName?: string 
+    }>;
+    
     const channel = channelList.find((c) => c.channelId === channelId);
-    return channel && channel.streamKey ? channel.streamKey : null;
+    
+    if (channel) {
+      return {
+        streamKey: channel.streamKey || null,
+        channelName: channel.channelName || 'Akashvani Radio',
+        stationName: channel.stationName || 'All India Radio'
+      };
+    }
+    
+    // Fallback: try to get station name from global stationName if available
+    const fallbackStationName = (global as any).appStationName || 'All India Radio';
+    
+    return { 
+      streamKey: null, 
+      channelName: 'Akashvani Radio', 
+      stationName: fallbackStationName 
+    };
   } catch {
-    return null;
+    return { streamKey: null, channelName: 'Akashvani Radio', stationName: 'All India Radio' };
   }
+};
+
+// For backward compatibility - just get streamKey
+const getStreamKeyForChannel = async (channelId: number | null): Promise<string | null> => {
+  const info = await getChannelInfo(channelId);
+  return info.streamKey;
 };
 
 // -- Utility for cache busting
@@ -114,20 +142,28 @@ const pauseStreamKeepControls = async (): Promise<void> => {
   } catch {}
 };
 
-// -- Add track and play for a channelId (ALWAYS resolve streamKey dynamically!)
+// -- Add track and play for a channelId (ALWAYS resolve streamKey and names dynamically!)
 const playChannelById = async (channelId: number | null): Promise<boolean> => {
   if (!channelId) return false;
   try {
-    const streamKey = await getStreamKeyForChannel(channelId);
-    if (!streamKey) return false;
+    const channelInfo = await getChannelInfo(channelId);
+    
+    if (!channelInfo.streamKey) {
+      console.warn(`[TrackPlayerService] No streamKey found for channel ${channelId}`);
+      return false;
+    }
+    
+    console.log(`[TrackPlayerService] Playing channel: ${channelInfo.channelName} from ${channelInfo.stationName}`);
+    
     await TrackPlayer.pause();
     await TrackPlayer.reset();
-    const freshUrl = await createFreshStreamUrl(streamKey);
+    const freshUrl = await createFreshStreamUrl(channelInfo.streamKey);
+    
     await TrackPlayer.add({
       id: `channel-${channelId}-${Date.now()}`,
       url: freshUrl,
-      title: 'Akashvani Radio',
-      artist: 'All India Radio',
+      title: channelInfo.channelName, // Use actual channel name
+      artist: channelInfo.stationName, // Use actual station name
       artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
       type: TrackType.HLS,
       isLiveStream: true,
@@ -148,6 +184,7 @@ const playChannelById = async (channelId: number | null): Promise<boolean> => {
     currentChannelId = channelId;
     return true;
   } catch (e) {
+    console.error(`[TrackPlayerService] Error playing channel ${channelId}:`, e);
     return false;
   }
 };
@@ -245,11 +282,50 @@ const cleanup = () => {
   httpStatusRetryCount = 0;
 };
 
-// -- Expose service controls (start/stop)
+// -- Expose service controls (start/stop) with enhanced channel name support
 (global as any).trackPlayerServiceControls = {
   stopFromApp: stopStreamAndClearControls,
-  startStream: async (channelId?: number) => {
-    // If no id provided, use last played from storage.
+  startStream: async (channelId?: number, streamKey?: string) => {
+    // If specific channelId and streamKey provided (from home screen), use those
+    if (channelId && streamKey) {
+      try {
+        const channelInfo = await getChannelInfo(channelId);
+        console.log(`[TrackPlayerService] Starting stream with provided info: ${channelInfo.channelName}`);
+        
+        await TrackPlayer.pause();
+        await TrackPlayer.reset();
+        const freshUrl = await createFreshStreamUrl(streamKey);
+        
+        await TrackPlayer.add({
+          id: `channel-${channelId}-${Date.now()}`,
+          url: freshUrl,
+          title: channelInfo.channelName,
+          artist: channelInfo.stationName,
+          artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
+          type: TrackType.HLS,
+          isLiveStream: true,
+          duration: 0,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+            'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Referer': 'https://akashvani.gov.in/',
+            'Origin': 'https://akashvani.gov.in',
+          },
+        });
+        await TrackPlayer.play();
+        isStreamingActive = true;
+        await saveAppStopState(false);
+        currentChannelId = channelId;
+        return;
+      } catch (e) {
+        console.error('[TrackPlayerService] Error starting stream with provided info:', e);
+      }
+    }
+    
+    // Fallback to last played channel
     const idToPlay = channelId || await getLastPlayingChannelId();
     await playChannelById(idToPlay);
   }
