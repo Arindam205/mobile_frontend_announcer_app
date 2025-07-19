@@ -9,12 +9,14 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import TrackPlayer from 'react-native-track-player';
 import * as Linking from 'expo-linking';
 import { URLHandler } from '../src/utils/urlHandler';
+import { router } from 'expo-router';
 
 // Enhanced linking configuration
 const linking = {
   prefixes: [
     'raise://',
     'com.subhra.raiseapp://',
+    'trackplayer://', // Add TrackPlayer scheme
     // Add your website domains here when available
     // 'https://yourapp.com',
     // 'http://yourapp.com',
@@ -23,6 +25,7 @@ const linking = {
     screens: {
       // Map URL patterns to screen routes
       index: '',
+      'trackplayer-redirect': 'trackplayer-redirect', // Map TrackPlayer URLs to splash screen
       '(auth)': {
         screens: {
           login: 'login',
@@ -40,11 +43,13 @@ const linking = {
           'rate-program': 'rate-program',
         },
       },
-      // Custom deep link patterns
+      // Custom deep link patterns - map ALL trackplayer URLs to splash
+      'trackplayer': 'trackplayer-redirect',
+      'trackplayer/*': 'trackplayer-redirect', // Catch any trackplayer sub-paths
       'station/:stationId': '(app)/radio',
       'stream/:streamUrl': '(app)/radio',
-      'play': '(app)/radio',
-      'stop': '(app)/radio',
+      'play': '(app)/home', // Redirect play action to home
+      'stop': '(app)/home', // Redirect stop action to home
     },
   },
 };
@@ -92,7 +97,31 @@ export default function RootLayout() {
 
   const handleIncomingURL = async (url: string) => {
     try {
-      // Basic validation
+      // Check if it's a TrackPlayer URL first
+      if (url.startsWith('trackplayer://')) {
+        console.log('[App] TrackPlayer URL detected, showing splash and redirecting to home');
+        
+        // Navigate to the TrackPlayer redirect screen instead of directly to home
+        try {
+          router.replace('/trackplayer-redirect');
+          console.log('[App] Successfully navigated to TrackPlayer redirect screen');
+        } catch (navError) {
+          console.error('[App] Error navigating to redirect screen:', navError);
+          // Fallback - go directly to home with a longer delay
+          setTimeout(() => {
+            try {
+              router.replace('/(app)/home');
+            } catch (fallbackError) {
+              console.error('[App] Fallback navigation also failed:', fallbackError);
+              router.push('/(app)/home');
+            }
+          }, 300);
+        }
+        
+        return;
+      }
+
+      // Basic validation for other URLs
       const validation = URLHandler.validateIncomingURL(url);
       
       if (!validation.isValid) {
@@ -115,7 +144,15 @@ export default function RootLayout() {
           const parsed = URLHandler.parseCustomSchemeURL(url);
           if (parsed) {
             console.log('[App] Custom scheme parsed:', parsed);
-            // The navigation will be handled by the linking config above
+            
+            // Handle specific custom scheme actions
+            if (parsed.path === 'play' || parsed.path === 'stop') {
+              // Redirect to home for play/stop actions
+              setTimeout(() => {
+                router.replace('/(app)/home');
+              }, 100);
+            }
+            // The navigation will be handled by the linking config above for other paths
           }
           break;
         
@@ -134,12 +171,13 @@ export default function RootLayout() {
           <AuthProvider>
             <Stack 
               screenOptions={{ headerShown: false }}
-              // Add linking configuration
-              // Note: This is a conceptual addition - actual implementation depends on your navigation setup
+              // Note: Expo Router handles linking automatically based on file structure
+              // The linking config above is more for reference and custom schemes
             >
               <Stack.Screen name="index" />
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
+              <Stack.Screen name="+not-found" />
             </Stack>
             <StatusBar style="auto" />
           </AuthProvider>

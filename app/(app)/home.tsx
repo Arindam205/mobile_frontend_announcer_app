@@ -234,6 +234,22 @@ export default function HomeScreen() {
     }, [])
   );
 
+  // Sync with TrackPlayer when screen comes into focus (e.g., from notification)
+useFocusEffect(
+  useCallback(() => {
+    console.log('[HomeScreen] Screen focused, syncing with TrackPlayer...');
+    
+    // Add a small delay to ensure TrackPlayer state is stable
+    const timer = setTimeout(() => {
+      syncWithTrackPlayer();
+    }, 300);
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [])
+);
+
   useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], async (event) => {
     if (event.type === Event.PlaybackError) {
       setIsBuffering(false);
@@ -435,28 +451,102 @@ export default function HomeScreen() {
   }, [lastPlayedChannelId, stationData]);
 
   // Fetch channels
-  const fetchChannels = async () => {
-    try {
-      setLoading(true); setError(null);
-      const response = await api.get('/api/stations/my-channels');
-      if (response.status >= 200 && response.status < 300){
-        // IMPORTANT: Set global channel data with enhanced info for TrackPlayerService
-        const enhancedChannels = response.data.channels.map((channel: Channel) => ({
-          ...channel,
-          stationName: response.data.stationName // Add station name to each channel
-        }));
+  // const fetchChannels = async () => {
+  //   try {
+  //     setLoading(true); setError(null);
+  //     const response = await api.get('/api/stations/my-channels');
+  //     if (response.status >= 200 && response.status < 300){
+  //       // IMPORTANT: Set global channel data with enhanced info for TrackPlayerService
+  //       const enhancedChannels = response.data.channels.map((channel: Channel) => ({
+  //         ...channel,
+  //         stationName: response.data.stationName // Add station name to each channel
+  //       }));
         
-        (global as any).appChannels = enhancedChannels;
-        (global as any).appStationName = response.data.stationName; // Also set global station name
+  //       (global as any).appChannels = enhancedChannels;
+  //       (global as any).appStationName = response.data.stationName; // Also set global station name
         
-        setStationData(response.data);
-      } 
-      else if (response.status >= 400 && response.status < 500) setError(response.data?.message || 'Failed to load channels');
-      else setError(`Unexpected server response: ${response.status}`);
-    } catch (error: any) {
-      setError('Failed to load channels. Please try again later.');
-    } finally { setLoading(false); }
-  };
+  //       setStationData(response.data);
+  //     } 
+  //     else if (response.status >= 400 && response.status < 500) setError(response.data?.message || 'Failed to load channels');
+  //     else setError(`Unexpected server response: ${response.status}`);
+  //   } catch (error: any) {
+  //     setError('Failed to load channels. Please try again later.');
+  //   } finally { setLoading(false); }
+  // };
+
+// Sync with current TrackPlayer state
+const syncWithTrackPlayer = async () => {
+  try {
+    const playbackState = await TrackPlayer.getPlaybackState();
+    const queue = await TrackPlayer.getQueue();
+    
+    console.log('[HomeScreen] Current TrackPlayer state:', playbackState);
+    console.log('[HomeScreen] Current queue length:', queue.length);
+    
+    if (queue.length > 0 && (playbackState.state === State.Playing || playbackState.state === State.Paused)) {
+      const currentTrack = queue[0];
+      console.log('[HomeScreen] Current track:', currentTrack);
+      
+      // Extract channel ID from track ID (format: "channel-{id}-{timestamp}")
+      if (currentTrack.id && currentTrack.id.startsWith('channel-')) {
+        const channelIdMatch = currentTrack.id.match(/channel-(\d+)-/);
+        if (channelIdMatch) {
+          const playingChannelId = parseInt(channelIdMatch[1], 10);
+          console.log('[HomeScreen] Found playing channel ID:', playingChannelId);
+          
+          setCurrentPlayingChannel(playingChannelId);
+          
+          // Update last played channel in storage
+          await saveLastPlayedChannel(playingChannelId);
+          
+          // Set buffering state based on current state
+          if ((playbackState.state as State) === State.Loading || (playbackState.state as State) === State.Buffering) {
+            setIsBuffering(true);
+          } else {
+            setIsBuffering(false);
+          }
+        }
+      }
+    } else {
+      // No track playing or queue is empty
+      console.log('[HomeScreen] No track currently playing');
+      setCurrentPlayingChannel(null);
+      setIsBuffering(false);
+    }
+  } catch (error) {
+    console.error('[HomeScreen] Error syncing with TrackPlayer:', error);
+  }
+};
+
+// Fetch channels
+const fetchChannels = async () => {
+  try {
+    setLoading(true); setError(null);
+    const response = await api.get('/api/stations/my-channels');
+    if (response.status >= 200 && response.status < 300){
+      // IMPORTANT: Set global channel data with enhanced info for TrackPlayerService
+      const enhancedChannels = response.data.channels.map((channel: Channel) => ({
+        ...channel,
+        stationName: response.data.stationName // Add station name to each channel
+      }));
+      
+      (global as any).appChannels = enhancedChannels;
+      (global as any).appStationName = response.data.stationName; // Also set global station name
+      
+      setStationData(response.data);
+      
+      // After channels are loaded, sync with TrackPlayer
+      setTimeout(() => {
+        syncWithTrackPlayer();
+      }, 500);
+      
+    } 
+    else if (response.status >= 400 && response.status < 500) setError(response.data?.message || 'Failed to load channels');
+    else setError(`Unexpected server response: ${response.status}`);
+  } catch (error: any) {
+    setError('Failed to load channels. Please try again later.');
+  } finally { setLoading(false); }
+};
 
   // FIXED: Navigation for channel rating - Use push instead of replace
   const handleChannelSelect = (channel: Channel, stationName: string) => {
