@@ -1,4 +1,448 @@
-import TrackPlayer, { Event, TrackType, State } from 'react-native-track-player';
+// import TrackPlayer, { Event, TrackType, State } from 'react-native-track-player';
+// import NetInfo from '@react-native-community/netinfo';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// // Only persist channelId!
+// const STORAGE_KEYS = {
+//   LAST_PLAYING_CHANNEL: 'lastPlayingChannelId',
+//   WAS_STOPPED_FROM_APP: 'wasStoppedFromApp',
+// };
+
+// let remotePlayListener: any = null;
+// let remotePauseListener: any = null;
+// let playbackErrorListener: any = null;
+// let playbackStateListener: any = null;
+// let networkListener: any = null;
+
+// let lastStopTime: number | null = null;
+// let isNetworkAvailable = true;
+// let isWaitingForNetwork = false;
+// let retryCount = 0;
+// const maxRetries = 3;
+// let retryTimeout: number | null = null;
+// let networkCheckInterval: number | null = null;
+// let httpStatusRetryCount = 0;
+// const maxHttpStatusRetries = 5;
+
+// let wasStoppedFromApp = false;
+// let isStreamingActive = false;
+// let currentChannelId: number | null = null;
+
+// // Utility: get last playing channelId from storage
+// const getLastPlayingChannelId = async (): Promise<number | null> => {
+//   try {
+//     const id = await AsyncStorage.getItem(STORAGE_KEYS.LAST_PLAYING_CHANNEL);
+//     return id ? parseInt(id, 10) : null;
+//   } catch {
+//     return null;
+//   }
+// };
+
+// // Utility: Save stopped-from-app state
+// const saveAppStopState = async (stoppedFromApp: boolean) => {
+//   try {
+//     await AsyncStorage.setItem(STORAGE_KEYS.WAS_STOPPED_FROM_APP, stoppedFromApp.toString());
+//     wasStoppedFromApp = stoppedFromApp;
+//   } catch {}
+// };
+
+// const loadAppStopState = async (): Promise<boolean> => {
+//   try {
+//     const state = await AsyncStorage.getItem(STORAGE_KEYS.WAS_STOPPED_FROM_APP);
+//     wasStoppedFromApp = state === 'true';
+//     return wasStoppedFromApp;
+//   } catch {
+//     return false;
+//   }
+// };
+
+// const checkNetworkConnectivity = async (): Promise<boolean> => {
+//   try {
+//     const state = await NetInfo.fetch();
+//     return state.isConnected === true && state.isInternetReachable !== false;
+//   } catch {
+//     return false;
+//   }
+// };
+
+// // Get channel info by channelId (including name and station)
+// const getChannelInfo = async (channelId: number | null): Promise<{streamKey: string | null, channelName: string, stationName: string}> => {
+//   try {
+//     if (!channelId || !(global as any).appChannels) {
+//       return { streamKey: null, channelName: 'Akashvani Radio', stationName: 'All India Radio' };
+//     }
+    
+//     const channelList = (global as any).appChannels as Array<{ 
+//       channelId: number, 
+//       streamKey?: string, 
+//       channelName?: string,
+//       stationName?: string 
+//     }>;
+    
+//     const channel = channelList.find((c) => c.channelId === channelId);
+    
+//     if (channel) {
+//       return {
+//         streamKey: channel.streamKey || null,
+//         channelName: channel.channelName || 'Akashvani Radio',
+//         stationName: channel.stationName || 'All India Radio'
+//       };
+//     }
+    
+//     // Fallback: try to get station name from global stationName if available
+//     const fallbackStationName = (global as any).appStationName || 'All India Radio';
+    
+//     return { 
+//       streamKey: null, 
+//       channelName: 'Akashvani Radio', 
+//       stationName: fallbackStationName 
+//     };
+//   } catch {
+//     return { streamKey: null, channelName: 'Akashvani Radio', stationName: 'All India Radio' };
+//   }
+// };
+
+// // For backward compatibility - just get streamKey
+// const getStreamKeyForChannel = async (channelId: number | null): Promise<string | null> => {
+//   const info = await getChannelInfo(channelId);
+//   return info.streamKey;
+// };
+
+// // -- Utility for cache busting
+// const createFreshStreamUrl = async (baseUrl: string): Promise<string> => {
+//   try {
+//     const url = new URL(baseUrl);
+//     url.searchParams.set('_t', Date.now().toString());
+//     url.searchParams.set('_cb', Math.random().toString(36).substring(2, 15));
+//     url.searchParams.set('_v', '3.0.0');
+//     return url.toString();
+//   } catch {
+//     return `${baseUrl}?_t=${Date.now()}&_cb=${Math.random().toString(36).substring(2, 15)}`;
+//   }
+// };
+
+// // -- FULL STOP & RESET from app
+// const stopStreamAndClearControls = async (): Promise<void> => {
+//   try {
+//     await saveAppStopState(true);
+//     isStreamingActive = false;
+//     lastStopTime = Date.now();
+//     await TrackPlayer.stop();
+//     await TrackPlayer.reset();
+//   } catch {}
+// };
+
+// // -- PAUSE, keep controls (from lockscreen/notification)
+// const pauseStreamKeepControls = async (): Promise<void> => {
+//   try {
+//     await saveAppStopState(false);
+//     isStreamingActive = false;
+//     lastStopTime = Date.now();
+//     await TrackPlayer.pause();
+//   } catch {}
+// };
+
+// // -- Add track and play for a channelId (ALWAYS resolve streamKey and names dynamically!)
+// const playChannelById = async (channelId: number | null): Promise<boolean> => {
+//   if (!channelId) return false;
+//   try {
+//     const channelInfo = await getChannelInfo(channelId);
+    
+//     if (!channelInfo.streamKey) {
+//       console.warn(`[TrackPlayerService] No streamKey found for channel ${channelId}`);
+//       return false;
+//     }
+    
+//     console.log(`[TrackPlayerService] Playing channel: ${channelInfo.channelName} from ${channelInfo.stationName}`);
+    
+//     await TrackPlayer.pause();
+//     await TrackPlayer.reset();
+//     const freshUrl = await createFreshStreamUrl(channelInfo.streamKey);
+    
+//     await TrackPlayer.add({
+//       id: `channel-${channelId}-${Date.now()}`,
+//       url: freshUrl,
+//       title: channelInfo.channelName, // Use actual channel name
+//       artist: channelInfo.stationName, // Use actual station name
+//       artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
+//       type: TrackType.HLS,
+//       isLiveStream: true,
+//       duration: 0,
+//       headers: {
+//         'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+//         'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
+//         'Accept-Language': 'en-US,en;q=0.9',
+//         'Cache-Control': 'no-cache',
+//         'Connection': 'keep-alive',
+//         'Referer': 'https://akashvani.gov.in/',
+//         'Origin': 'https://akashvani.gov.in',
+//       },
+//     });
+//     await TrackPlayer.play();
+//     isStreamingActive = true;
+//     await saveAppStopState(false);
+//     currentChannelId = channelId;
+//     return true;
+//   } catch (e) {
+//     console.error(`[TrackPlayerService] Error playing channel ${channelId}:`, e);
+//     return false;
+//   }
+// };
+
+// // -- HTTP Status error logic
+// const isHttpStatusError = (error: any): boolean => {
+//   const errorMessage = error.message?.toLowerCase() || '';
+//   const errorCode = error.code?.toLowerCase() || '';
+//   return (
+//     errorCode.includes('android-io-bad-http-status') ||
+//     errorCode.includes('error_code_io_bad_http_status') ||
+//     errorCode.includes('io-bad-http-status') ||
+//     errorMessage.includes('bad http status') ||
+//     errorMessage.includes('response code:') ||
+//     errorMessage.includes('http error')
+//   );
+// };
+
+// const isBehindLiveWindowError = (error: any): boolean => {
+//   const errorMessage = error.message?.toLowerCase() || '';
+//   const errorCode = error.code?.toLowerCase() || '';
+//   return (
+//     errorCode.includes('android-behind-live-window') ||
+//     errorMessage.includes('behind live window')
+//   );
+// };
+
+// const isNetworkError = (error: any): boolean => {
+//   const networkErrorCodes = [
+//     'ERR_NETWORK_CHANGED', 'ERR_INTERNET_DISCONNECTED', 'ERR_CONNECTION_REFUSED',
+//     'ERR_CONNECTION_TIMED_OUT', 'ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET',
+//     'Network Error'
+//   ];
+//   const errorMessage = error.message?.toLowerCase() || '';
+//   const errorCode = error.code?.toLowerCase() || '';
+//   return networkErrorCodes.some(code =>
+//     errorMessage.includes(code.toLowerCase()) || errorCode.includes(code.toLowerCase())
+//   );
+// };
+
+// // -- Retry & Recovery Logic --
+// const recoverFromHttpStatusError = async (): Promise<boolean> => {
+//   if (httpStatusRetryCount >= maxHttpStatusRetries) {
+//     httpStatusRetryCount = 0;
+//     return false;
+//   }
+//   httpStatusRetryCount++;
+//   const lastId = await getLastPlayingChannelId();
+//   return playChannelById(lastId);
+// };
+// const attemptGeneralRecovery = async (): Promise<void> => {
+//   if (retryTimeout) {
+//     clearTimeout(retryTimeout);
+//     retryTimeout = null;
+//   }
+//   if (retryCount >= maxRetries) {
+//     retryCount = 0;
+//     return;
+//   }
+//   retryCount++;
+//   const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 30000);
+//   retryTimeout = setTimeout(async () => {
+//     const hasNetwork = await checkNetworkConnectivity();
+//     if (!hasNetwork) {
+//       isNetworkAvailable = false;
+//       isWaitingForNetwork = true;
+//       startNetworkRecoveryMonitoring();
+//       return;
+//     }
+//     const lastId = await getLastPlayingChannelId();
+//     const ok = await playChannelById(lastId);
+//     if (!ok) await attemptGeneralRecovery();
+//     else retryCount = 0;
+//   }, delay) as any;
+// };
+// const startNetworkRecoveryMonitoring = () => {
+//   if (networkCheckInterval) clearInterval(networkCheckInterval);
+//   networkCheckInterval = setInterval(async () => {
+//     const hasNetwork = await checkNetworkConnectivity();
+//     if (hasNetwork && isWaitingForNetwork) {
+//       clearInterval(networkCheckInterval!);
+//       networkCheckInterval = null;
+//       isWaitingForNetwork = false;
+//       isNetworkAvailable = true;
+//       const lastId = await getLastPlayingChannelId();
+//       await playChannelById(lastId);
+//     }
+//   }, 5000) as any;
+// };
+// const cleanup = () => {
+//   if (retryTimeout) clearTimeout(retryTimeout);
+//   if (networkCheckInterval) clearInterval(networkCheckInterval);
+//   isWaitingForNetwork = false;
+//   retryCount = 0;
+//   httpStatusRetryCount = 0;
+// };
+
+// // -- Expose service controls (start/stop) with enhanced channel name support
+// (global as any).trackPlayerServiceControls = {
+//   stopFromApp: stopStreamAndClearControls,
+//   startStream: async (channelId?: number, streamKey?: string) => {
+//     // If specific channelId and streamKey provided (from home screen), use those
+//     if (channelId && streamKey) {
+//       try {
+//         const channelInfo = await getChannelInfo(channelId);
+//         console.log(`[TrackPlayerService] Starting stream with provided info: ${channelInfo.channelName}`);
+        
+//         await TrackPlayer.pause();
+//         await TrackPlayer.reset();
+//         const freshUrl = await createFreshStreamUrl(streamKey);
+        
+//         await TrackPlayer.add({
+//           id: `channel-${channelId}-${Date.now()}`,
+//           url: freshUrl,
+//           title: channelInfo.channelName,
+//           artist: channelInfo.stationName,
+//           artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
+//           type: TrackType.HLS,
+//           isLiveStream: true,
+//           duration: 0,
+//           headers: {
+//             'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+//             'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
+//             'Accept-Language': 'en-US,en;q=0.9',
+//             'Cache-Control': 'no-cache',
+//             'Connection': 'keep-alive',
+//             'Referer': 'https://akashvani.gov.in/',
+//             'Origin': 'https://akashvani.gov.in',
+//           },
+//         });
+//         await TrackPlayer.play();
+//         isStreamingActive = true;
+//         await saveAppStopState(false);
+//         currentChannelId = channelId;
+//         return;
+//       } catch (e) {
+//         console.error('[TrackPlayerService] Error starting stream with provided info:', e);
+//       }
+//     }
+    
+//     // Fallback to last played channel
+//     const idToPlay = channelId || await getLastPlayingChannelId();
+//     await playChannelById(idToPlay);
+//   }
+// };
+
+// module.exports = async function () {
+//   if (remotePlayListener) remotePlayListener.remove();
+//   if (remotePauseListener) remotePauseListener.remove();
+//   if (playbackErrorListener) playbackErrorListener.remove();
+//   if (playbackStateListener) playbackStateListener.remove();
+//   if (networkListener) networkListener.remove();
+//   cleanup();
+//   await loadAppStopState();
+
+//   // -- Listen to NetInfo for network recovery
+//   networkListener = NetInfo.addEventListener(state => {
+//     const wasConnected = isNetworkAvailable;
+//     isNetworkAvailable = state.isConnected === true && state.isInternetReachable !== false;
+//     if (!wasConnected && isNetworkAvailable && isWaitingForNetwork) {
+//       if (networkCheckInterval) {
+//         clearInterval(networkCheckInterval);
+//         networkCheckInterval = null;
+//       }
+//       isWaitingForNetwork = false;
+//       setTimeout(async () => {
+//         const lastId = await getLastPlayingChannelId();
+//         await playChannelById(lastId);
+//       }, 1000);
+//     }
+//   });
+
+//   // -- Main error handler with robust retry/recovery
+//   playbackErrorListener = TrackPlayer.addEventListener(Event.PlaybackError, async (event) => {
+//     if (isHttpStatusError(event)) {
+//       setTimeout(async () => { await recoverFromHttpStatusError(); }, Math.min(1000 * httpStatusRetryCount, 5000));
+//       return;
+//     }
+//     if (isBehindLiveWindowError(event)) {
+//       const lastId = await getLastPlayingChannelId();
+//       await playChannelById(lastId);
+//       return;
+//     }
+//     const hasNetwork = await checkNetworkConnectivity();
+//     if (!hasNetwork || isNetworkError(event)) {
+//       isNetworkAvailable = false;
+//       isWaitingForNetwork = true;
+//       startNetworkRecoveryMonitoring();
+//       return;
+//     }
+//     await attemptGeneralRecovery();
+//   });
+
+//   playbackStateListener = TrackPlayer.addEventListener(Event.PlaybackState, async (event) => {
+//     if (event.state === 'paused' || event.state === 'stopped') {
+//       isStreamingActive = false;
+//       lastStopTime = Date.now();
+//     } else if (event.state === 'playing') {
+//       isStreamingActive = true;
+//       retryCount = 0;
+//       httpStatusRetryCount = 0;
+//       cleanup();
+//     }
+//   });
+
+//   // -- Remote play: always resumes using lastPlayedChannelId, after >10s will get streamKey from global
+//   remotePlayListener = TrackPlayer.addEventListener(Event.RemotePlay, async () => {
+//     const hasNetwork = await checkNetworkConnectivity();
+//     if (!hasNetwork) {
+//       isNetworkAvailable = false;
+//       isWaitingForNetwork = true;
+//       startNetworkRecoveryMonitoring();
+//       return;
+//     }
+//     const wasStoppedFromAppState = await loadAppStopState();
+//     if (wasStoppedFromAppState) {
+//       // Only resume from within the app, not remote controls.
+//       return;
+//     }
+//     const needsFreshContent = lastStopTime && (Date.now() - lastStopTime) > 10000;
+//     const lastId = await getLastPlayingChannelId();
+//     if (needsFreshContent) {
+//       await playChannelById(lastId);
+//     } else {
+//       const queue = await TrackPlayer.getQueue();
+//       if (queue.length === 0) {
+//         await playChannelById(lastId);
+//       }
+//       await TrackPlayer.play();
+//     }
+//     isStreamingActive = true;
+//     await saveAppStopState(false);
+//   });
+
+//   remotePauseListener = TrackPlayer.addEventListener(Event.RemotePause, async () => {
+//     await pauseStreamKeepControls();
+//   });
+
+//   // -- Optionally, auto-initialize with last channel if desired:
+//   try {
+//     const hasNetwork = await checkNetworkConnectivity();
+//     if (hasNetwork) {
+//       const lastId = await getLastPlayingChannelId();
+//       if (lastId) currentChannelId = lastId;
+//     } else {
+//       isNetworkAvailable = false;
+//     }
+//   } catch { }
+// };
+
+// src/services/TrackPlayerService.ts
+import TrackPlayer, { 
+  Event, 
+  TrackType, 
+  State, 
+  Capability,
+  AppKilledPlaybackBehavior 
+} from 'react-native-track-player';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -102,12 +546,6 @@ const getChannelInfo = async (channelId: number | null): Promise<{streamKey: str
   }
 };
 
-// For backward compatibility - just get streamKey
-const getStreamKeyForChannel = async (channelId: number | null): Promise<string | null> => {
-  const info = await getChannelInfo(channelId);
-  return info.streamKey;
-};
-
 // -- Utility for cache busting
 const createFreshStreamUrl = async (baseUrl: string): Promise<string> => {
   try {
@@ -162,8 +600,8 @@ const playChannelById = async (channelId: number | null): Promise<boolean> => {
     await TrackPlayer.add({
       id: `channel-${channelId}-${Date.now()}`,
       url: freshUrl,
-      title: channelInfo.channelName, // Use actual channel name
-      artist: channelInfo.stationName, // Use actual station name
+      title: channelInfo.channelName,
+      artist: channelInfo.stationName,
       artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
       type: TrackType.HLS,
       isLiveStream: true,
@@ -235,6 +673,7 @@ const recoverFromHttpStatusError = async (): Promise<boolean> => {
   const lastId = await getLastPlayingChannelId();
   return playChannelById(lastId);
 };
+
 const attemptGeneralRecovery = async (): Promise<void> => {
   if (retryTimeout) {
     clearTimeout(retryTimeout);
@@ -260,6 +699,7 @@ const attemptGeneralRecovery = async (): Promise<void> => {
     else retryCount = 0;
   }, delay) as any;
 };
+
 const startNetworkRecoveryMonitoring = () => {
   if (networkCheckInterval) clearInterval(networkCheckInterval);
   networkCheckInterval = setInterval(async () => {
@@ -274,6 +714,7 @@ const startNetworkRecoveryMonitoring = () => {
     }
   }, 5000) as any;
 };
+
 const cleanup = () => {
   if (retryTimeout) clearTimeout(retryTimeout);
   if (networkCheckInterval) clearInterval(networkCheckInterval);
@@ -340,6 +781,30 @@ module.exports = async function () {
   cleanup();
   await loadAppStopState();
 
+  // Configure TrackPlayer options with CORRECT API
+  await TrackPlayer.updateOptions({
+    // Use correct capability constants
+    capabilities: [
+      Capability.Play,
+      Capability.Pause,
+    ],
+    compactCapabilities: [
+      Capability.Play,
+      Capability.Pause,
+    ],
+    notificationCapabilities: [
+      Capability.Play,
+      Capability.Pause,
+    ],
+    android: {
+      // Use correct property name
+      appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+      alwaysPauseOnInterruption: false,
+    },
+    color: 0x3b82f6,
+    progressUpdateEventInterval: 5,
+  });
+
   // -- Listen to NetInfo for network recovery
   networkListener = NetInfo.addEventListener(state => {
     const wasConnected = isNetworkAvailable;
@@ -379,10 +844,10 @@ module.exports = async function () {
   });
 
   playbackStateListener = TrackPlayer.addEventListener(Event.PlaybackState, async (event) => {
-    if (event.state === 'paused' || event.state === 'stopped') {
+    if (event.state === State.Paused || event.state === State.Stopped) {
       isStreamingActive = false;
       lastStopTime = Date.now();
-    } else if (event.state === 'playing') {
+    } else if (event.state === State.Playing) {
       isStreamingActive = true;
       retryCount = 0;
       httpStatusRetryCount = 0;
