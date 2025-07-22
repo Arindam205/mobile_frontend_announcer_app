@@ -10,7 +10,8 @@ import {
   KeyboardAvoidingView, 
   BackHandler,
   ActivityIndicator,
-  Alert
+  Alert,
+  Pressable
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Picker } from '@react-native-picker/picker';
@@ -19,8 +20,9 @@ import DatePicker from '../../components/DatePicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AlertCircle, ArrowLeft } from 'lucide-react-native';
+import {Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react-native';
 import StationSelector from '../../components/StationSelector';
+
 
 // Define interface for the station
 interface Station {
@@ -111,6 +113,11 @@ export default function RegisterScreen() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidationMessage, setShowValidationMessage] = useState(false);
+
+  // Add these state variables at the top of your RegisterScreen component, after the existing useState declarations
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Auth context
   const { register } = useAuth();
@@ -213,6 +220,15 @@ export default function RegisterScreen() {
     // Clear error for this field when user starts typing
     setErrors(prev => ({ ...prev, [field]: undefined }));
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // ADD THE TOGGLE FUNCTIONS HERE:
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   // Handle registration
@@ -480,44 +496,79 @@ export default function RegisterScreen() {
             </View>
 
             {/* Password field */}
+
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Password</Text>
-                <Text style={styles.requiredAsterisk}>*</Text>
-              </View>
-              <TextInput
-                style={[styles.input, errors.password && styles.inputError]}
-                placeholder="Create a password"
-                secureTextEntry
-                value={formData.password}
-                onChangeText={(value) => handleInputChange('password', value)}
-                placeholderTextColor="#666"
-                returnKeyType="next"
-                editable={!isSubmitting}
-              />
-              {errors.password && <Text style={styles.fieldErrorText}>{errors.password}</Text>}
-            </View>
+  <View style={styles.labelRow}>
+    <Text style={styles.label}>Password</Text>
+    <Text style={styles.requiredAsterisk}>*</Text>
+  </View>
+  <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
+    <TextInput
+      style={styles.passwordInput}
+      placeholder="Create a password"
+      secureTextEntry={!showPassword}
+      value={formData.password}
+      onChangeText={(value) => handleInputChange('password', value)}
+      placeholderTextColor="#666"
+      returnKeyType="next"
+      editable={!isSubmitting}
+      autoCapitalize="none"
+      autoComplete="password"
+      textContentType="password"
+    />
+    <Pressable 
+      onPress={togglePasswordVisibility}
+      style={styles.eyeButton}
+      accessibilityRole="button"
+      accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+    >
+      {showPassword ? (
+        <EyeOff size={20} color="#64748B" />
+      ) : (
+        <Eye size={20} color="#64748B" />
+      )}
+    </Pressable>
+  </View>
+  {errors.password && <Text style={styles.fieldErrorText}>{errors.password}</Text>}
+</View>
 
             {/* Confirm Password field */}
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <Text style={styles.requiredAsterisk}>*</Text>
-              </View>
-              <TextInput
-                style={[styles.input, errors.confirmPassword && styles.inputError]}
-                placeholder="Confirm your password"
-                secureTextEntry
-                value={formData.confirmPassword}
-                onChangeText={(value) => handleInputChange('confirmPassword', value)}
-                placeholderTextColor="#666"
-                returnKeyType="done"
-                editable={!isSubmitting}
-              />
-              {errors.confirmPassword && (
-                <Text style={styles.fieldErrorText}>{errors.confirmPassword}</Text>
-              )}
-            </View>
+  <View style={styles.labelRow}>
+    <Text style={styles.label}>Confirm Password</Text>
+    <Text style={styles.requiredAsterisk}>*</Text>
+  </View>
+  <View style={[styles.passwordContainer, errors.confirmPassword && styles.inputError]}>
+    <TextInput
+      style={styles.passwordInput}
+      placeholder="Confirm your password"
+      secureTextEntry={!showConfirmPassword}
+      value={formData.confirmPassword}
+      onChangeText={(value) => handleInputChange('confirmPassword', value)}
+      placeholderTextColor="#666"
+      returnKeyType="done"
+      editable={!isSubmitting}
+      autoCapitalize="none"
+      autoComplete="password"
+      textContentType="password"
+    />
+    <Pressable 
+      onPress={toggleConfirmPasswordVisibility}
+      style={styles.eyeButton}
+      accessibilityRole="button"
+      accessibilityLabel={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+    >
+      {showConfirmPassword ? (
+        <EyeOff size={20} color="#64748B" />
+      ) : (
+        <Eye size={20} color="#64748B" />
+      )}
+    </Pressable>
+  </View>
+  {errors.confirmPassword && (
+    <Text style={styles.fieldErrorText}>{errors.confirmPassword}</Text>
+  )}
+</View>
 
             {/* General error message */}
             {errors.general ? (
@@ -734,4 +785,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  passwordContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderWidth: 1,
+  borderColor: '#ddd',
+  borderRadius: 8,
+  backgroundColor: '#fff',
+  height: 50,
+  position: 'relative',
+},
+passwordInput: {
+  flex: 1,
+  height: '100%',
+  paddingHorizontal: 15,
+  fontSize: 16,
+  color: '#000',
+},
+eyeButton: {
+  padding: 15,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
 });
