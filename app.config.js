@@ -6,7 +6,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/images/AkashvaniLogo1.png",
     userInterfaceStyle: "automatic",
-    owner: "amigos2026",
+    owner: "amigos2027",
     scheme: "raise",
     splash: {
       image: "./assets/images/akashvanilogo.png",
@@ -61,7 +61,7 @@ module.exports = {
     ],
     extra: {
       eas: {
-        projectId: "4321e795-7072-4931-8e31-bc4a4a05a129"
+        projectId: "e006fd6d-81e4-406f-a5e2-ae874f568d1a"
       },
       apiUrl: process.env.API_URL || "http://117.247.79.184:8081"
       
