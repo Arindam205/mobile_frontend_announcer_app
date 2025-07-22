@@ -8,9 +8,9 @@ import { Alert } from 'react-native';
 const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
 
 // API Base URL
-export const API_URL = "http://192.168.0.125:8080";
+// export const API_URL = "http://192.168.0.125:8080";
 
-//export const API_URL = Constants.expoConfig?.extra?.apiUrl || "http://117.247.79.184:8081";
+export const API_URL = Constants.expoConfig?.extra?.apiUrl || "http://117.247.79.184:8081";
 
 // API Endpoints
 export const ENDPOINTS = {
