@@ -234,21 +234,88 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // Sync with TrackPlayer when screen comes into focus (e.g., from notification)
-useFocusEffect(
-  useCallback(() => {
-    console.log('[HomeScreen] Screen focused, syncing with TrackPlayer...');
+//   // Sync with TrackPlayer when screen comes into focus (e.g., from notification)
+// useFocusEffect(
+//   useCallback(() => {
+//     console.log('[HomeScreen] Screen focused, syncing with TrackPlayer...');
     
-    // Add a small delay to ensure TrackPlayer state is stable
-    const timer = setTimeout(() => {
-      syncWithTrackPlayer();
-    }, 300);
+//     // Add a small delay to ensure TrackPlayer state is stable
+//     const timer = setTimeout(() => {
+//       syncWithTrackPlayer();
+//     }, 300);
     
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [])
-);
+//     return () => {
+//       clearTimeout(timer);
+//     };
+//   }, [])
+// );
+
+// FIXED: Proper back button handling for home screen
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        console.log('[HomeScreen] Back button pressed on home screen');
+        
+        // Always exit the app from home screen, regardless of navigation history
+        if (Platform.OS === 'android') {
+          BackHandler.exitApp();
+        }
+        return true; // Prevent default back behavior
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      
+      return () => {
+        backHandler.remove();
+      };
+    }, [])
+  );
+
+  // ENHANCED: Sync with TrackPlayer when screen comes into focus + handle direct navigation
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[HomeScreen] Screen focused, syncing with TrackPlayer...');
+      
+      // Combined function to handle both sync and direct navigation
+      const handleScreenFocus = async () => {
+        try {
+          // Add a small delay to ensure TrackPlayer state is stable
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Sync with current TrackPlayer state
+          await syncWithTrackPlayer();
+          
+          // Enhanced: Check if this is a direct navigation from notification
+          const playbackState = await TrackPlayer.getPlaybackState();
+          const queue = await TrackPlayer.getQueue();
+          
+          console.log('[HomeScreen] Focus check - State:', playbackState.state, 'Queue:', queue.length);
+          
+          // Only auto-resume if there's no active track and we have a last played channel
+          if (queue.length === 0 && lastPlayedChannelId && playbackState.state !== 'playing') {
+            console.log('[HomeScreen] Notification tap detected - auto-resuming last channel');
+            
+            // Small additional delay to ensure UI is fully ready
+            setTimeout(async () => {
+              const success = await resumeLastPlayedChannel();
+              if (success) {
+                await TrackPlayer.play();
+                console.log('[HomeScreen] Auto-resumed from notification');
+              }
+            }, 200);
+          }
+        } catch (error) {
+          console.error('[HomeScreen] Error in screen focus handling:', error);
+        }
+      };
+      
+      handleScreenFocus();
+      
+      return () => {
+        console.log('[HomeScreen] Screen unfocused');
+      };
+    }, [lastPlayedChannelId])
+  );
 
   useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], async (event) => {
     if (event.type === Event.PlaybackError) {
