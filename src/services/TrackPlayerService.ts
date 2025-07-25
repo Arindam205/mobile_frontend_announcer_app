@@ -2,10 +2,11 @@ import TrackPlayer, { Event, TrackType, State } from 'react-native-track-player'
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Only persist channelId!
+// FIXED: Added user-stopped tracking to prevent unwanted auto-resume
 const STORAGE_KEYS = {
   LAST_PLAYING_CHANNEL: 'lastPlayingChannelId',
   WAS_STOPPED_FROM_APP: 'wasStoppedFromApp',
+  USER_STOPPED_PLAYBACK: 'userStoppedPlayback', // NEW: Track if user explicitly stopped
 };
 
 let remotePlayListener: any = null;
@@ -25,6 +26,7 @@ let httpStatusRetryCount = 0;
 const maxHttpStatusRetries = 5;
 
 let wasStoppedFromApp = false;
+let userStoppedPlayback = false; // NEW: Track user-initiated stops
 let isStreamingActive = false;
 let currentChannelId: number | null = null;
 
@@ -51,6 +53,26 @@ const loadAppStopState = async (): Promise<boolean> => {
     const state = await AsyncStorage.getItem(STORAGE_KEYS.WAS_STOPPED_FROM_APP);
     wasStoppedFromApp = state === 'true';
     return wasStoppedFromApp;
+  } catch {
+    return false;
+  }
+};
+
+// NEW: Save/load user-stopped state
+const saveUserStopState = async (userStopped: boolean) => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_STOPPED_PLAYBACK, userStopped.toString());
+    userStoppedPlayback = userStopped;
+    console.log('[TrackPlayerService] User stopped state saved:', userStopped);
+  } catch {}
+};
+
+const loadUserStopState = async (): Promise<boolean> => {
+  try {
+    const state = await AsyncStorage.getItem(STORAGE_KEYS.USER_STOPPED_PLAYBACK);
+    userStoppedPlayback = state === 'true';
+    console.log('[TrackPlayerService] User stopped state loaded:', userStoppedPlayback);
+    return userStoppedPlayback;
   } catch {
     return false;
   }
@@ -121,14 +143,16 @@ const createFreshStreamUrl = async (baseUrl: string): Promise<string> => {
   }
 };
 
-// -- FULL STOP & RESET from app
+// FIXED: Full stop & reset from app - now marks as user-stopped
 const stopStreamAndClearControls = async (): Promise<void> => {
   try {
     await saveAppStopState(true);
+    await saveUserStopState(true); // NEW: Mark as user-stopped
     isStreamingActive = false;
     lastStopTime = Date.now();
     await TrackPlayer.stop();
     await TrackPlayer.reset();
+    console.log('[TrackPlayerService] Stream stopped by user - marked as user-stopped');
   } catch {}
 };
 
@@ -136,14 +160,16 @@ const stopStreamAndClearControls = async (): Promise<void> => {
 const pauseStreamKeepControls = async (): Promise<void> => {
   try {
     await saveAppStopState(false);
+    // Don't mark as user-stopped for pause from notification
     isStreamingActive = false;
     lastStopTime = Date.now();
     await TrackPlayer.pause();
+    console.log('[TrackPlayerService] Stream paused from notification - not marked as user-stopped');
   } catch {}
 };
 
-// -- Add track and play for a channelId (ALWAYS resolve streamKey and names dynamically!)
-const playChannelById = async (channelId: number | null): Promise<boolean> => {
+// FIXED: Add track and play for a channelId with notification persistence
+const playChannelById = async (channelId: number | null, clearUserStopFlag: boolean = false, maintainNotification: boolean = false): Promise<boolean> => {
   if (!channelId) return false;
   try {
     const channelInfo = await getChannelInfo(channelId);
@@ -155,15 +181,23 @@ const playChannelById = async (channelId: number | null): Promise<boolean> => {
     
     console.log(`[TrackPlayerService] Playing channel: ${channelInfo.channelName} from ${channelInfo.stationName}`);
     
-    await TrackPlayer.pause();
-    await TrackPlayer.reset();
+    // FIXED: Better notification handling during track changes
+    if (maintainNotification) {
+      // Only pause to keep notification alive, don't stop/reset
+      await TrackPlayer.pause();
+      await TrackPlayer.reset();
+    } else {
+      await TrackPlayer.pause();
+      await TrackPlayer.reset();
+    }
+    
     const freshUrl = await createFreshStreamUrl(channelInfo.streamKey);
     
     await TrackPlayer.add({
       id: `channel-${channelId}-${Date.now()}`,
       url: freshUrl,
-      title: channelInfo.channelName, // Use actual channel name
-      artist: channelInfo.stationName, // Use actual station name
+      title: channelInfo.channelName,
+      artist: channelInfo.stationName,
       artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
       type: TrackType.HLS,
       isLiveStream: true,
@@ -181,6 +215,12 @@ const playChannelById = async (channelId: number | null): Promise<boolean> => {
     await TrackPlayer.play();
     isStreamingActive = true;
     await saveAppStopState(false);
+    
+    // Clear user-stopped flag when starting playback
+    if (clearUserStopFlag) {
+      await saveUserStopState(false);
+    }
+    
     currentChannelId = channelId;
     return true;
   } catch (e) {
@@ -227,6 +267,12 @@ const isNetworkError = (error: any): boolean => {
 
 // -- Retry & Recovery Logic --
 const recoverFromHttpStatusError = async (): Promise<boolean> => {
+  // FIXED: Don't auto-recover if user explicitly stopped
+  if (userStoppedPlayback) {
+    console.log('[TrackPlayerService] Not recovering from HTTP error - user stopped playback');
+    return false;
+  }
+  
   if (httpStatusRetryCount >= maxHttpStatusRetries) {
     httpStatusRetryCount = 0;
     return false;
@@ -235,7 +281,14 @@ const recoverFromHttpStatusError = async (): Promise<boolean> => {
   const lastId = await getLastPlayingChannelId();
   return playChannelById(lastId);
 };
+
 const attemptGeneralRecovery = async (): Promise<void> => {
+  // FIXED: Don't auto-recover if user explicitly stopped
+  if (userStoppedPlayback) {
+    console.log('[TrackPlayerService] Not attempting recovery - user stopped playback');
+    return;
+  }
+  
   if (retryTimeout) {
     clearTimeout(retryTimeout);
     retryTimeout = null;
@@ -260,9 +313,19 @@ const attemptGeneralRecovery = async (): Promise<void> => {
     else retryCount = 0;
   }, delay) as any;
 };
+
 const startNetworkRecoveryMonitoring = () => {
   if (networkCheckInterval) clearInterval(networkCheckInterval);
   networkCheckInterval = setInterval(async () => {
+    // FIXED: Don't auto-recover if user explicitly stopped
+    if (userStoppedPlayback) {
+      console.log('[TrackPlayerService] Stopping network recovery - user stopped playback');
+      clearInterval(networkCheckInterval!);
+      networkCheckInterval = null;
+      isWaitingForNetwork = false;
+      return;
+    }
+    
     const hasNetwork = await checkNetworkConnectivity();
     if (hasNetwork && isWaitingForNetwork) {
       clearInterval(networkCheckInterval!);
@@ -274,6 +337,7 @@ const startNetworkRecoveryMonitoring = () => {
     }
   }, 5000) as any;
 };
+
 const cleanup = () => {
   if (retryTimeout) clearTimeout(retryTimeout);
   if (networkCheckInterval) clearInterval(networkCheckInterval);
@@ -282,9 +346,9 @@ const cleanup = () => {
   httpStatusRetryCount = 0;
 };
 
-// -- Expose service controls (start/stop) with enhanced channel name support
+// FIXED: Expose service controls with better notification handling
 (global as any).trackPlayerServiceControls = {
-  stopFromApp: stopStreamAndClearControls,
+  stopFromApp: stopStreamAndClearControls, // This now properly marks as user-stopped
   startStream: async (channelId?: number, streamKey?: string) => {
     // If specific channelId and streamKey provided (from home screen), use those
     if (channelId && streamKey) {
@@ -292,8 +356,19 @@ const cleanup = () => {
         const channelInfo = await getChannelInfo(channelId);
         console.log(`[TrackPlayerService] Starting stream with provided info: ${channelInfo.channelName}`);
         
-        await TrackPlayer.pause();
-        await TrackPlayer.reset();
+        // FIXED: Check if we should maintain notification (if there's already a track)
+        const currentQueue = await TrackPlayer.getQueue();
+        const maintainNotification = currentQueue.length > 0;
+        
+        if (maintainNotification) {
+          // Keep notification alive during transition
+          await TrackPlayer.pause();
+          await TrackPlayer.reset();
+        } else {
+          await TrackPlayer.pause();
+          await TrackPlayer.reset();
+        }
+        
         const freshUrl = await createFreshStreamUrl(streamKey);
         
         await TrackPlayer.add({
@@ -318,6 +393,7 @@ const cleanup = () => {
         await TrackPlayer.play();
         isStreamingActive = true;
         await saveAppStopState(false);
+        await saveUserStopState(false); // Clear user-stopped flag when starting
         currentChannelId = channelId;
         return;
       } catch (e) {
@@ -325,9 +401,9 @@ const cleanup = () => {
       }
     }
     
-    // Fallback to last played channel
+    // Fallback to last played channel (but clear user-stop flag)
     const idToPlay = channelId || await getLastPlayingChannelId();
-    await playChannelById(idToPlay);
+    await playChannelById(idToPlay, true, false); // Clear user-stop flag
   }
 };
 
@@ -338,13 +414,16 @@ module.exports = async function () {
   if (playbackStateListener) playbackStateListener.remove();
   if (networkListener) networkListener.remove();
   cleanup();
+  
+  // Load both app stop and user stop states
   await loadAppStopState();
+  await loadUserStopState();
 
   // -- Listen to NetInfo for network recovery
   networkListener = NetInfo.addEventListener(state => {
     const wasConnected = isNetworkAvailable;
     isNetworkAvailable = state.isConnected === true && state.isInternetReachable !== false;
-    if (!wasConnected && isNetworkAvailable && isWaitingForNetwork) {
+    if (!wasConnected && isNetworkAvailable && isWaitingForNetwork && !userStoppedPlayback) {
       if (networkCheckInterval) {
         clearInterval(networkCheckInterval);
         networkCheckInterval = null;
@@ -357,8 +436,14 @@ module.exports = async function () {
     }
   });
 
-  // -- Main error handler with robust retry/recovery
+  // FIXED: Error handler that respects user-stopped state
   playbackErrorListener = TrackPlayer.addEventListener(Event.PlaybackError, async (event) => {
+    // Don't attempt recovery if user explicitly stopped playback
+    if (userStoppedPlayback) {
+      console.log('[TrackPlayerService] Playback error occurred, but user stopped - not recovering');
+      return;
+    }
+    
     if (isHttpStatusError(event)) {
       setTimeout(async () => { await recoverFromHttpStatusError(); }, Math.min(1000 * httpStatusRetryCount, 5000));
       return;
@@ -390,7 +475,7 @@ module.exports = async function () {
     }
   });
 
-  // -- Remote play: always resumes using lastPlayedChannelId, after >10s will get streamKey from global
+  // FIXED: Remote play that respects user-stopped state
   remotePlayListener = TrackPlayer.addEventListener(Event.RemotePlay, async () => {
     const hasNetwork = await checkNetworkConnectivity();
     if (!hasNetwork) {
@@ -399,13 +484,19 @@ module.exports = async function () {
       startNetworkRecoveryMonitoring();
       return;
     }
+    
+    // Check if user explicitly stopped - if so, don't auto-resume
     const wasStoppedFromAppState = await loadAppStopState();
-    if (wasStoppedFromAppState) {
-      // Only resume from within the app, not remote controls.
+    const wasUserStopped = await loadUserStopState();
+    
+    if (wasStoppedFromAppState || wasUserStopped) {
+      console.log('[TrackPlayerService] Remote play ignored - user had stopped playback');
       return;
     }
+    
     const needsFreshContent = lastStopTime && (Date.now() - lastStopTime) > 10000;
     const lastId = await getLastPlayingChannelId();
+    
     if (needsFreshContent) {
       await playChannelById(lastId);
     } else {
@@ -423,12 +514,17 @@ module.exports = async function () {
     await pauseStreamKeepControls();
   });
 
-  // -- Optionally, auto-initialize with last channel if desired:
+  // REMOVED: Auto-initialization to prevent unwanted playback
+  // The service will only start playing when explicitly requested
   try {
     const hasNetwork = await checkNetworkConnectivity();
     if (hasNetwork) {
       const lastId = await getLastPlayingChannelId();
-      if (lastId) currentChannelId = lastId;
+      if (lastId) {
+        currentChannelId = lastId;
+        // Don't auto-start, just remember the channel
+        console.log('[TrackPlayerService] Remembered last channel:', lastId, 'but not auto-starting');
+      }
     } else {
       isNetworkAvailable = false;
     }

@@ -49,6 +49,7 @@ interface StationResponse {
 
 const STORAGE_KEYS = {
   LAST_PLAYING_CHANNEL: 'lastPlayingChannelId',
+  USER_STOPPED_PLAYBACK: 'userStoppedPlayback', // NEW: Track if user explicitly stopped
 };
 
 const ErrorToast = ({ visible, message, type = 'error', onDismiss }: any) => {
@@ -98,6 +99,7 @@ const EnhancedChannelCard = ({
 }: any) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  
   useEffect(() => {
     if (isCurrentlyBuffering) {
       Animated.loop(
@@ -106,23 +108,39 @@ const EnhancedChannelCard = ({
           Animated.timing(scaleAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
-    } else { scaleAnim.setValue(1); }
+    } else { 
+      scaleAnim.setValue(1); 
+    }
   }, [isCurrentlyBuffering]);
+  
   useEffect(() => {
     if (isCurrentlyPlaying) {
       Animated.loop(
         Animated.timing(rotateAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
       ).start();
-    } else { rotateAnim.setValue(0); }
+    } else { 
+      rotateAnim.setValue(0); 
+    }
   }, [isCurrentlyPlaying]);
+  
   const gradients: [string, string][] = [
     ['#2563eb', '#1d4ed8'], ['#0ea5e9', '#0369a1'], ['#3b82f6', '#2563eb'], ['#0c4a6e', '#082f49']
   ];
   const gradientColors = gradients[index % gradients.length];
-  const handlePlayButtonPress = () => { if (channel.streamKey) onStreamToggle(channel); };
+  
+  const handlePlayButtonPress = (e: any) => {
+    e.stopPropagation(); // Prevent card press when clicking play button
+    if (channel.streamKey) onStreamToggle(channel); 
+  };
+
+  const handleCardPress = () => {
+    // Always navigate to rating selection when clicking card body
+    onChannelSelect(channel, stationName);
+  };
+  
   return (
     <Animated.View style={[styles.channelCard, { transform: [{ scale: scaleAnim }] }]}>
-      <TouchableOpacity key={channel.channelId} onPress={() => onChannelSelect(channel, stationName)} style={styles.cardTouchable} activeOpacity={0.8}>
+      <TouchableOpacity onPress={handleCardPress} style={styles.cardTouchable} activeOpacity={0.8}>
         <LinearGradient colors={gradientColors} style={styles.gradientBackground} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.channelContent}>
             <View style={styles.channelInfo}>
@@ -148,7 +166,6 @@ const EnhancedChannelCard = ({
                 onPress={handlePlayButtonPress}
                 android_ripple={{ color: 'rgba(59,130,246,0.14)', radius: 32 }}
               >
-                {/* Gradient Layer */}
                 <LinearGradient
                   colors={['#2563eb', '#60a5fa']}
                   start={{ x: 0.25, y: 0.2 }}
@@ -161,7 +178,6 @@ const EnhancedChannelCard = ({
                     },
                   ]}
                 />
-                {/* Gloss/Highlight */}
                 <View style={{
                   position: 'absolute',
                   top: 6, left: 10, right: 10,
@@ -171,7 +187,7 @@ const EnhancedChannelCard = ({
                   opacity: 0.7,
                   zIndex: 2,
                 }}/>
-                {/* Actual Icon/Loader */}
+                {/* Show loader only in play button when buffering */}
                 {isCurrentlyBuffering ? (
                   <ActivityIndicator size={24} color="#fff" />
                 ) : isCurrentlyPlaying ? (
@@ -199,6 +215,10 @@ export default function HomeScreen() {
   const [isBuffering, setIsBuffering] = useState(false);
   const [networkConnected, setNetworkConnected] = useState(true);
   const [errorToast, setErrorToast] = useState({ visible: false, message: '', type: 'error' as 'error' | 'warning' | 'info' });
+  
+  // Track loading states for individual channels (only for play button)
+  const [loadingChannels, setLoadingChannels] = useState<Set<number>>(new Set());
+  
   const router = useRouter();
   const { setSelectedChannelData } = useChannel();
   const playbackState = usePlaybackState();
@@ -219,11 +239,10 @@ export default function HomeScreen() {
       const onBackPress = () => {
         console.log('[HomeScreen] Back button pressed on home screen');
         
-        // Always exit the app from home screen, regardless of navigation history
         if (Platform.OS === 'android') {
           BackHandler.exitApp();
         }
-        return true; // Prevent default back behavior
+        return true;
       };
 
       const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
@@ -234,42 +253,15 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // ENHANCED: Sync with TrackPlayer when screen comes into focus + handle direct navigation
+  // FIXED: Properly sync state when returning to home screen - maintain current state
   useFocusEffect(
     useCallback(() => {
       console.log('[HomeScreen] Screen focused, syncing with TrackPlayer...');
       
       const handleScreenFocus = async () => {
         try {
-          // Immediate sync for better responsiveness
-          await syncWithTrackPlayer();
-          
-          // Additional delayed sync to catch any state changes
-          setTimeout(async () => {
-            await syncWithTrackPlayer();
-            
-            // Check for notification tap auto-resume
-            const playbackState = await TrackPlayer.getPlaybackState();
-            const queue = await TrackPlayer.getQueue();
-            
-            console.log('[HomeScreen] Delayed sync - State:', playbackState.state, 'Queue:', queue.length);
-            
-            if (queue.length === 0 && lastPlayedChannelId && playbackState.state !== 'playing') {
-              console.log('[HomeScreen] Notification tap detected - auto-resuming last channel');
-              
-              setTimeout(async () => {
-                const success = await resumeLastPlayedChannel();
-                if (success) {
-                  await TrackPlayer.play();
-                  console.log('[HomeScreen] Auto-resumed from notification');
-                  // Force sync after auto-resume
-                  setTimeout(() => {
-                    syncWithTrackPlayer();
-                  }, 300);
-                }
-              }, 200);
-            }
-          }, 500);
+          // Always sync with current TrackPlayer state - don't change anything
+          await syncWithTrackPlayerOnly();
           
         } catch (error) {
           console.error('[HomeScreen] Error in screen focus handling:', error);
@@ -281,7 +273,7 @@ export default function HomeScreen() {
       return () => {
         console.log('[HomeScreen] Screen unfocused');
       };
-    }, [lastPlayedChannelId])
+    }, [])
   );
 
   // ENHANCED: Better TrackPlayer event handling
@@ -291,6 +283,7 @@ export default function HomeScreen() {
     if (event.type === Event.PlaybackError) {
       console.log('[HomeScreen] Playback error occurred');
       setIsBuffering(false);
+      setLoadingChannels(new Set()); // Clear all loading states
       showErrorToast('Streaming error occurred. Please try again.', 'error');
     }
     
@@ -298,36 +291,43 @@ export default function HomeScreen() {
       console.log('[HomeScreen] Playback state changed to:', event.state);
       switch (event.state) {
         case State.Playing:
-          console.log('[HomeScreen] State: Playing - clearing buffering');
+          console.log('[HomeScreen] State: Playing - clearing buffering immediately');
           setIsBuffering(false);
+          setLoadingChannels(new Set()); // Clear loading states immediately
           break;
         case State.Paused:
         case State.Stopped:
           console.log('[HomeScreen] State: Paused/Stopped - clearing buffering');
           setIsBuffering(false);
+          setLoadingChannels(new Set()); // Clear loading states
           break;
         case State.Buffering:
         case State.Loading:
-          console.log('[HomeScreen] State: Buffering/Loading - setting buffering');
+        case State.Connecting:
+          console.log('[HomeScreen] State: Buffering/Loading/Connecting - setting buffering');
           setIsBuffering(true);
+          // Don't clear loadingChannels here, let them persist until playing
+          break;
+        case State.Ready:
+          console.log('[HomeScreen] State: Ready - clearing buffering but keeping notification');
+          // Track is ready but might not be playing yet
+          setIsBuffering(false);
           break;
         default:
           setIsBuffering(false);
       }
       
-      // CRITICAL FIX: Re-sync state when playback state changes
+      // Faster sync for immediate UI updates
       setTimeout(() => {
-        syncWithTrackPlayer();
-      }, 100);
+        syncWithTrackPlayerOnly();
+      }, 50);
     }
     
-    // NEW: Handle track changes specifically
     if (event.type === Event.PlaybackTrackChanged) {
       console.log('[HomeScreen] Track changed event');
-      // Force a sync when track changes to ensure UI updates
       setTimeout(() => {
-        syncWithTrackPlayer();
-      }, 200);
+        syncWithTrackPlayerOnly();
+      }, 100);
     }
   });
 
@@ -376,6 +376,13 @@ export default function HomeScreen() {
     } catch (error) { }
   };
 
+  // NEW: Save user stopped state
+  const saveUserStoppedState = async (stopped: boolean) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_STOPPED_PLAYBACK, stopped.toString());
+    } catch (error) { }
+  };
+
   // Helper to create fresh HLS URL
   const createFreshStreamUrl = async (baseUrl: string): Promise<string> => {
     try {
@@ -389,8 +396,8 @@ export default function HomeScreen() {
     }
   };
 
-  // ENHANCED sync function with better state management
-  const syncWithTrackPlayer = async () => {
+  // FIXED: Only sync with existing TrackPlayer state, maintain whatever state exists
+  const syncWithTrackPlayerOnly = async () => {
     try {
       const playbackState = await TrackPlayer.getPlaybackState();
       const queue = await TrackPlayer.getQueue();
@@ -398,53 +405,52 @@ export default function HomeScreen() {
       console.log('[HomeScreen] Syncing - Current TrackPlayer state:', playbackState.state);
       console.log('[HomeScreen] Syncing - Current queue length:', queue.length);
       
-      if (queue.length > 0 && (playbackState.state === State.Playing || playbackState.state === State.Paused)) {
+      if (queue.length > 0) {
         const currentTrack = queue[0];
         console.log('[HomeScreen] Syncing - Current track:', currentTrack);
         
-        // Extract channel ID from track ID (format: "channel-{id}-{timestamp}")
         if (currentTrack.id && currentTrack.id.startsWith('channel-')) {
           const channelIdMatch = currentTrack.id.match(/channel-(\d+)-/);
           if (channelIdMatch) {
             const playingChannelId = parseInt(channelIdMatch[1], 10);
-            console.log('[HomeScreen] Syncing - Found playing channel ID:', playingChannelId);
+            console.log('[HomeScreen] Syncing - Found channel ID:', playingChannelId);
             
-            // CRITICAL FIX: Force state update even if channelId hasn't changed
+            // FIXED: Only update UI to match actual TrackPlayer state
             setCurrentPlayingChannel(playingChannelId);
-            
-            // Update last played channel in storage
             await saveLastPlayedChannel(playingChannelId);
             
-            // CRITICAL FIX: Properly sync buffering state
-            if ((playbackState.state as State) === State.Loading || (playbackState.state as State) === State.Buffering) {
+            // Sync buffering state accurately
+            if ((playbackState.state as State) === State.Loading || 
+                (playbackState.state as State) === State.Buffering ||
+                (playbackState.state as State) === State.Connecting) {
               console.log('[HomeScreen] Syncing - Setting buffering state');
               setIsBuffering(true);
+              setLoadingChannels(prev => new Set([...prev, playingChannelId]));
             } else {
               console.log('[HomeScreen] Syncing - Clearing buffering state');
               setIsBuffering(false);
+              setLoadingChannels(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(playingChannelId);
+                return newSet;
+              });
             }
-            
-            // Force a re-render to ensure UI updates
-            setTimeout(() => {
-              console.log('[HomeScreen] Force re-render completed');
-            }, 100);
           }
         }
       } else {
-        // No track playing or queue is empty
-        console.log('[HomeScreen] Syncing - No track currently playing');
+        // No track in queue - clear current playing
+        console.log('[HomeScreen] Syncing - No track in queue');
         setCurrentPlayingChannel(null);
         setIsBuffering(false);
+        setLoadingChannels(new Set());
       }
     } catch (error) {
       console.error('[HomeScreen] Error syncing with TrackPlayer:', error);
-      // Reset states on error to prevent UI inconsistency
-      setCurrentPlayingChannel(null);
-      setIsBuffering(false);
+      // Don't change state on error - keep existing state
     }
   };
 
-  // ENHANCED: Better stream toggle handler with immediate UI feedback
+  // FIXED: Better stream toggle handler with seamless notification and loading
   const handleStreamToggle = async (channel: Channel) => {
     if (!networkConnected) {
       showErrorToast('No internet connection. Please check your network.', 'error');
@@ -458,13 +464,18 @@ export default function HomeScreen() {
     try {
       const currentState = await TrackPlayer.getPlaybackState();
       
-      // If playing the same channel, pause/stop
-      if (currentPlayingChannel === channel.channelId && currentState.state === State.Playing) {
+      // If playing or buffering the same channel, stop it
+      if (currentPlayingChannel === channel.channelId && 
+          (currentState.state === State.Playing || currentState.state === State.Buffering || currentState.state === State.Loading)) {
         console.log('[HomeScreen] Stopping current channel:', channel.channelId);
         
-        // IMMEDIATE UI FEEDBACK: Clear playing state immediately
+        // Clear states immediately
         setCurrentPlayingChannel(null);
         setIsBuffering(false);
+        setLoadingChannels(new Set());
+        
+        // Mark as user-stopped to prevent auto-resume
+        await saveUserStoppedState(true);
         
         if ((global as any).trackPlayerServiceControls?.stopFromApp) {
           await (global as any).trackPlayerServiceControls.stopFromApp();
@@ -475,125 +486,73 @@ export default function HomeScreen() {
         return;
       }
       
-      // Starting/switching to new channel
+      // Starting new channel
       console.log('[HomeScreen] Starting channel:', channel.channelId);
       
-      // IMMEDIATE UI FEEDBACK: Set new channel as playing and show buffering
+      // FIXED: Set states in correct order to show seamless loading
       setCurrentPlayingChannel(channel.channelId);
       setIsBuffering(true);
+      setLoadingChannels(prev => new Set([...prev, channel.channelId]));
       
-      await TrackPlayer.stop();
-      await TrackPlayer.reset();
-      
-      // Save channelId to storage
+      // Save channelId and clear user-stopped flag before starting
       await saveLastPlayedChannel(channel.channelId);
+      await saveUserStoppedState(false);
       
-      // Use the enhanced startStream function with channel info
-      if ((global as any).trackPlayerServiceControls?.startStream) {
-        await (global as any).trackPlayerServiceControls.startStream(channel.channelId, channel.streamKey);
+      // FIXED: Don't stop/reset if there's already a track playing to maintain notification
+      const queue = await TrackPlayer.getQueue();
+      const needsReset = queue.length === 0 || currentState.state === State.Stopped;
+      
+      if (needsReset) {
+        await TrackPlayer.stop();
+        await TrackPlayer.reset();
       } else {
-        // Fallback to manual track creation
-        const freshStreamUrl = await createFreshStreamUrl(channel.streamKey);
-        await TrackPlayer.add({
-          id: `channel-${channel.channelId}-${Date.now()}`,
-          url: freshStreamUrl,
-          title: channel.channelName,
-          artist: stationData?.stationName || 'All India Radio',
-          artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
-          type: TrackType.HLS, 
-          isLiveStream: true, 
-          duration: 0,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-            'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Referer': 'https://akashvani.gov.in/',
-            'Origin': 'https://akashvani.gov.in',
-          },
-        });
-        await TrackPlayer.play();
+        // Just pause to keep notification alive
+        await TrackPlayer.pause();
+        await TrackPlayer.reset();
       }
       
-      // Force a sync after starting to ensure UI is updated
+      // Create and add new track
+      const freshStreamUrl = await createFreshStreamUrl(channel.streamKey);
+      await TrackPlayer.add({
+        id: `channel-${channel.channelId}-${Date.now()}`,
+        url: freshStreamUrl,
+        title: channel.channelName,
+        artist: stationData?.stationName || 'All India Radio',
+        artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
+        type: TrackType.HLS, 
+        isLiveStream: true, 
+        duration: 0,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+          'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Referer': 'https://akashvani.gov.in/',
+          'Origin': 'https://akashvani.gov.in',
+        },
+      });
+      
+      // Start playing
+      await TrackPlayer.play();
+      
+      // Force a sync after starting (reduced timeout for faster feedback)
       setTimeout(() => {
-        syncWithTrackPlayer();
-      }, 1000);
+        syncWithTrackPlayerOnly();
+      }, 500);
       
     } catch (error) {
       console.error('[HomeScreen] Error in handleStreamToggle:', error);
       setIsBuffering(false);
+      setLoadingChannels(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(channel.channelId);
+        return newSet;
+      });
       setCurrentPlayingChannel(null);
       showErrorToast('Failed to start streaming. Please try again.', 'error');
     }
   };
-
-  // Resume last played channel from channelId
-  const resumeLastPlayedChannel = async () => {
-    if (!lastPlayedChannelId || !stationData?.channels) return false;
-    const lastChannel = stationData.channels.find(ch => ch.channelId === lastPlayedChannelId);
-    if (!lastChannel || !lastChannel.streamKey) return false;
-    try {
-      setCurrentPlayingChannel(lastChannel.channelId);
-      setIsBuffering(true);
-      
-      // Use the enhanced startStream with proper channel info
-      if ((global as any).trackPlayerServiceControls?.startStream) {
-        await (global as any).trackPlayerServiceControls.startStream(lastChannel.channelId, lastChannel.streamKey);
-      } else {
-        // Fallback
-        const freshUrl = await createFreshStreamUrl(lastChannel.streamKey);
-        await TrackPlayer.add({
-          id: `channel-${lastChannel.channelId}-${Date.now()}`,
-          url: freshUrl,
-          title: lastChannel.channelName,
-          artist: stationData?.stationName || 'All India Radio',
-          artwork: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/All_India_Radio_Logo.svg/1200px-All_India_Radio_Logo.svg.png',
-          type: TrackType.HLS, isLiveStream: true, duration: 0,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-            'Accept': 'application/vnd.apple.mpegurl, application/x-mpegurl, audio/x-mpegurl, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Referer': 'https://akashvani.gov.in/',
-            'Origin': 'https://akashvani.gov.in',
-          },
-        });
-      }
-      return true;
-    } catch (error) {
-      setIsBuffering(false);
-      setCurrentPlayingChannel(null);
-      return false;
-    }
-  };
-
-  // Expose resume logic to TrackPlayerService via global controls
-  useEffect(() => {
-    if ((global as any).trackPlayerServiceControls) {
-      const originalStartStream = (global as any).trackPlayerServiceControls.startStream;
-      (global as any).trackPlayerServiceControls.startStream = async (channelId?: number, streamKey?: string) => {
-        // If channelId and streamKey provided, use them directly
-        if (channelId && streamKey) {
-          await originalStartStream(channelId, streamKey);
-          return;
-        }
-        
-        // Otherwise check if we need to resume from queue or fetch last played
-        const queue = await TrackPlayer.getQueue();
-        if (queue.length === 0) {
-          const resumed = await resumeLastPlayedChannel();
-          if (resumed) {
-            await TrackPlayer.play();
-            return;
-          }
-        }
-        await originalStartStream();
-      };
-    }
-  }, [lastPlayedChannelId, stationData]);
 
   // Fetch channels
   const fetchChannels = async () => {
@@ -601,7 +560,6 @@ export default function HomeScreen() {
       setLoading(true); setError(null);
       const response = await api.get('/api/stations/my-channels');
       if (response.status >= 200 && response.status < 300){
-        // Set global channel data with enhanced info for TrackPlayerService
         const enhancedChannels = response.data.channels.map((channel: Channel) => ({
           ...channel,
           stationName: response.data.stationName
@@ -612,9 +570,9 @@ export default function HomeScreen() {
         
         setStationData(response.data);
         
-        // After channels are loaded, sync with TrackPlayer
+        // Only sync existing state, don't auto-resume
         setTimeout(() => {
-          syncWithTrackPlayer();
+          syncWithTrackPlayerOnly();
         }, 500);
         
       } 
@@ -634,7 +592,10 @@ export default function HomeScreen() {
   useEffect(() => { fetchChannels(); }, []);
 
   const isChannelPlaying = (channelId: number) => currentPlayingChannel === channelId && playbackState?.state === State.Playing;
-  const isChannelBuffering = (channelId: number) => currentPlayingChannel === channelId && isBuffering;
+  const isChannelBuffering = (channelId: number) => {
+    // FIXED: Show loading if channel is explicitly loading OR if it's the current channel and buffering
+    return loadingChannels.has(channelId) || (currentPlayingChannel === channelId && isBuffering);
+  };
   const isLastPlayedChannelLabel = (channelId: number) => lastPlayedChannelId === channelId;
 
   if (loading) {
@@ -661,35 +622,37 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ErrorToast visible={errorToast.visible} message={errorToast.message} type={errorToast.type} onDismiss={hideErrorToast} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.heading}>Live Radio & Ratings</Text>
-        <Text style={styles.subheading}>Stream live • Rate content • Tap cards to evaluate</Text>
-        {stationData?.channels.length ? (
-          <View style={styles.channelsContainer}>
-            {stationData.channels.map((channel, index) => (
-              <EnhancedChannelCard
-                key={channel.channelId}
-                channel={channel}
-                index={index}
-                onChannelSelect={handleChannelSelect}
-                onStreamToggle={handleStreamToggle}
-                isCurrentlyPlaying={isChannelPlaying(channel.channelId)}
-                isCurrentlyBuffering={isChannelBuffering(channel.channelId)}
-                stationName={stationData.stationName}
-                isLastPlayedChannel={isLastPlayedChannelLabel(channel.channelId)}
-              />
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No channels available</Text>
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+  <SafeAreaView style={styles.container}>
+    <ErrorToast visible={errorToast.visible} message={errorToast.message} type={errorToast.type} onDismiss={hideErrorToast} />
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <Text style={styles.heading}>Live Radio & Ratings</Text>
+      <Text style={styles.subheading}>Stream live • Rate content • Tap cards to evaluate</Text>
+      {stationData?.channels.length ? (
+        <View style={styles.channelsContainer}>
+          {stationData.channels.map((channel, index) => (
+            <EnhancedChannelCard
+              key={channel.channelId}
+              channel={channel}
+              index={index}
+              onChannelSelect={handleChannelSelect}
+              onStreamToggle={handleStreamToggle}
+              isCurrentlyPlaying={isChannelPlaying(channel.channelId)}
+              isCurrentlyBuffering={isChannelBuffering(channel.channelId)}
+              stationName={stationData.stationName}
+              isLastPlayedChannel={isLastPlayedChannelLabel(channel.channelId)}
+            />
+          ))}
+        </View>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No channels available</Text>
+        </View>
+      )}
+    </ScrollView>
+  </SafeAreaView>
+);
+
+  
 }
 
 const styles = StyleSheet.create({
